@@ -1,0 +1,49 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+*.pdb
+*.pyi
+
+# ---- Virtual Environments ----
+venv/
+ENV/
+env/
+.venv/
+.ENV/
+
+# ---- Django ----
+*.log
+*.pot
+*.pyc
+*.sqlite3
+media/
+
+# ---- IDE Files ----
+.vscode/
+.idea/
+
+# ---- OS files ----
+.DS_Store
+Thumbs.db
+
+# ---- Docker ----
+*.pid
+*.seed
+docker-compose.override.yml
+
+# ---- Node / React ----
+frontend/node_modules
+frontend/build/
+frontend/.env
+
+# ---- Backend ----
+backend/__pycache__/
+backend/api/__pycache__/
+backend/config/__pycache__/
+backend/api/migrations/__pycache__/
+
+# ---- Ignore compiled Python in backend ----
+backend/**/*.pyc

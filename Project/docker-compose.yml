@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:17
+    container_name: postgres_db
+    environment:
+      POSTGRES_DB: filmes
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  backend:
+    build: ./backend
+    container_name: django_backend
+    # Espera pelo DB e aplica migrações automaticamente
+    command: >
+      sh -c "
+        echo 'A aguardar pela base de dados...';
+        sleep 5;
+        python manage.py migrate &&
+        python manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      DJANGO_DB_HOST: db
+      DJANGO_DB_PORT: 5432
+      DJANGO_DB_NAME: filmes
+      DJANGO_DB_USER: postgres
+      DJANGO_DB_PASSWORD: 123
+      # Define o modo de debug
+      DJANGO_DEBUG: "True"
+    restart: always
+
+  frontend:
+    build: ./frontend
+    container_name: react_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  postgres_data:

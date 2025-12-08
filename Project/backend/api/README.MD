@@ -1,0 +1,5 @@
+Nos models, o filme tem a capa como BinaryField pois o postgres nao armazena png ou svg. Então quando criar-mos as views para buscar os filmes da api e colocar na base de dados temos de ler a imagem em binario. Depois no frontend fazemos o processo inverso para ter-mos a imagem como svg ou png 
+
+
+
+Login: Ao fazermos login é gerado um token de acesso JWT temporario que vamos usar para saber se o user esta logado ou nao na plataforma e assim guardar toda a informação do user. Para acessar endpoints que precisamos estar logados (IsAuthenticated) passamos nos headers do frontend o Bearer token: token de acesso para o django fazer a verificacao se o user esta logado e pode acessar outros endpoints. Usando o endpoint "api/login/user_info/" temos de colocar o token no authentication Bearer para conseguirmos usar este endpoint e se for um token JWT válido, retorna o id do user, nome e email , que podemos usar para acessar coisas que precisamos na BD para outras coisas, etc

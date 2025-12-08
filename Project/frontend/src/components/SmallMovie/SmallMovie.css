@@ -1,0 +1,16 @@
+.small-movie-container{
+    display: flex;
+    transition: transform 0.3s ease;
+    
+}
+
+.small-movie-container:hover{
+    opacity: 1;
+    transform: scale(1.15);
+    cursor: pointer;
+}
+
+.small-movie-container img {
+    height: 10rem;
+    border-radius: 12px;
+}

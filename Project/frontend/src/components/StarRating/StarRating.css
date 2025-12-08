@@ -1,0 +1,58 @@
+
+.rating-container {
+  display: inline-flex;
+  align-items: center;
+  font-size: 30px;
+  color: #ddd;
+}
+
+.star-wrapper {
+  position: relative;
+  cursor: pointer;
+  line-height: 1;
+  margin-right: 2px;
+}
+
+.star-visual {
+  display: block;
+  transition: color 0.2s;
+}
+
+.star-visual.full {
+  color: #faaf00; 
+}
+
+.star-visual.half {
+  background: linear-gradient(90deg, #faaf00 50%, #ddd 50%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.rating-container.read-only .star-wrapper,
+.rating-container.disabled .star-wrapper {
+  cursor: default;
+}
+
+.rating-container.disabled {
+  opacity: 0.5;
+  pointer-events: none; 
+}
+
+.hitbox-left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  z-index: 10;
+}
+
+.hitbox-right {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50%;
+  height: 100%;
+  z-index: 10;
+ 
+}
