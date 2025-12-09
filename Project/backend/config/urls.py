@@ -63,7 +63,7 @@ urlpatterns = [
     path("api/movies/<int:tmdb_id>/review/", add_review),
     path("api/movies/<int:tmdb_id>/review/delete/", delete_review),
     path("api/movies/<int:tmdb_id>/reviews/", list_reviews),
-    path("api/movies/recomendations/",recommendations),
+    path('api/movies/recommendations/', recommendations_view, name='movie-recommendations'),
 
 
     path("api/movies/watch_later/add/", add_watch_later),

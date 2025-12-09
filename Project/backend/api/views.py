@@ -1,3 +1,5 @@
+from functools import cache
+import math
 from django.shortcuts import render
 from django.db import models
 from django.http import JsonResponse
@@ -991,145 +993,98 @@ def delete_review(request, tmdb_id):
 
     return Response({"message":"Review removida com sucesso"})
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def recommendations(request):
+def get_movie_recommendations(request):
+    """
+    Endpoint de recomendações personalizadas para utilizador autenticado.
+    
+    RF-10 (Motor de Recomendação): Recomendações baseadas em avaliações > 7.5
+    RF-11 (Tendências/Populares): Fallback para filmes populares se < 3 avaliações
+    
+    Casos de teste:
+    - >= 3 avaliações positivas: recomendações por género
+    - < 3 avaliações positivas: filmes populares como fallback
+    - Sem filmes recomendáveis: lista vazia
+    - Não autenticado: HTTP 401 Unauthorized
+    
+    Performance: tempo resposta ≤ 800ms
+    """
     user = request.user
-
-    interesses = set(
-        AtividadeUsuario.objects
-        .filter(usuario=user, rating__gte=6.5)
-        .values_list("filme__generos__nome", flat=True)
-    )
-
-
-    if not interesses:
-        return Response({
-            "message": "Sem géneros de interesse identificados para recomendações"
-        })
-
-    genero_stats=(
-        AtividadeUsuario.objects
-        .filter(usuario=user, rating__gte=7.5)
-        .values("filme__generos__nome")
-        .annotate(
-            count=Count("filme__generos__nome"),
-            avg_rating=Avg("rating")
+    
+    # Buscar avaliações positivas do utilizador (rating > 7.5)
+    high_ratings = AtividadeUsuario.objects.filter(
+        usuario=user,
+        rating__gt=7.5
+    ).select_related('filme').prefetch_related('filme__generos')
+    
+    num_high_ratings = high_ratings.count()
+    
+    # Obter IDs de filmes que o utilizador já avaliou (para exclusão)
+    filmes_avaliados_ids = AtividadeUsuario.objects.filter(
+        usuario=user,
+        rating__isnull=False
+    ).values_list('filme_id', flat=True)
+    
+    # Caso 1: Utilizador tem >= 3 avaliações positivas
+    if num_high_ratings >= 3:
+        # Extrair géneros dos filmes bem avaliados usando tuple (hashable)
+        generos_ids = tuple()
+        
+        for atividade in high_ratings:
+            filme = atividade.filme
+            for genero in filme.generos.all():
+                if genero.nome not in generos_ids:
+                    generos_ids = generos_ids + (genero.nome,)
+        
+        if generos_ids:
+            # Filmes com géneros similares, excluindo os já avaliados
+            filmes_recomendados = (
+                Filme.objects
+                .filter(generos__nome__in=generos_ids)
+                .exclude(id__in=filmes_avaliados_ids)
+                .prefetch_related('generos')
+                .distinct()
+                .order_by('-rating')[:20]
+            )
+        else:
+            filmes_recomendados = Filme.objects.none()
+    
+    # Caso 2: Utilizador tem < 3 avaliações positivas (fallback para populares)
+    else:
+        # Filmes populares (maior rating do TMDB), excluindo os já avaliados
+        filmes_recomendados = (
+            Filme.objects
+            .exclude(id__in=filmes_avaliados_ids)
+            .prefetch_related('generos')
+            .order_by('-rating')[:20]
         )
-    )
-
-    genero_pesos = {}
-
-    for g in genero_stats:
-        nome = g["filme__generos__nome"]
-        count = g["count"]
-        avg_rating = g["avg_rating"]
-
-        peso = log(1 + count) * avg_rating
-        genero_pesos[nome] = peso
-
-    candidatos = (
-        Filme.objects
-        .filter(generos__nome__in=interesses)
-        .exclude(atividadeusuario__usuario=user)
-        .prefetch_related("generos")
-        .distinct()
-    )[:50] 
-
-    generos_por_filme = {
-        filme.id: [g.nome for g in filme.generos.all()]
-        for filme in candidatos
-    }
-
-    def peso_do_filme(filme):
-        return sum(genero_pesos.get(g, 0) for g in generos_por_filme[filme.id])
-
-    filmes_ordenados = sorted(candidatos, key=peso_do_filme, reverse=True)
+    
+    # Serializar filmes recomendados
+    resultado = []
+    for filme in filmes_recomendados:
+        filme_dict = {
+            "tmdb_id": filme.id,
+            "titulo": filme.nome,
+            "descricao": filme.descricao,
+            "poster_url": tmdb_image_url(filme.poster_path),
+            "rating_tmdb": filme.rating,
+            "generos": [g.nome for g in filme.generos.all()],
+        }
+        resultado.append(filme_dict)
+    
+    return Response({
+        "num_user_ratings": num_high_ratings,
+        "recommendation_type": "personalized" if num_high_ratings >= 3 else "popular",
+        "total": len(resultado),
+        "recommendations": resultado
+    })
 
 
-    filmes_principais = filmes_ordenados[:24]
+def recommendations_view(request):
+    """Alias para compatibilidade com urls.py"""
+    return get_movie_recommendations(request)
 
-    trending = tmdb_request("trending/movie/week").get("results", [])
-    tmdb_genres = tmdb_request("genre/movie/list").get("genres", [])
-    genre_dict = {g["id"]: g["name"] for g in tmdb_genres}
+#### claude AI
 
-    trending_filtro = []
-
-    for movie in trending:
-
-        tmdb_id = movie.get("id")
-        if not tmdb_id:
-            continue
-
-        if AtividadeUsuario.objects.filter(usuario=user, filme__id=tmdb_id).exists():
-            continue
-
-        genre_ids = movie.get("genre_ids", [])
-        movie_genre_names = {genre_dict.get(gid) for gid in genre_ids if gid in genre_dict}
-
-        if not movie_genre_names.intersection(interesses):
-
-            details = movie
-            if not details or not details.get("title"):
-                continue
-
-            trending_filtro.append(details)
-
-            if len(trending_filtro) >= 20:
-                break
-
-    dif = trending_filtro[:6]
-
-    final = []
-    i = 0
-    d = 0
-
-    while i < len(filmes_principais) or d < len(dif):
-
-        if i < len(filmes_principais):
-            final.append(filmes_principais[i])
-            i += 1
-
-        if i % 4 == 0 and d < len(dif): 
-            final.append(dif[d])
-            d += 1
-
-    result = []
-
-    for item in final:
-        if isinstance(item, Filme):
-            result.append({
-                "id": item.id,
-                "titulo": item.nome,
-                "poster": tmdb_image_url(item.poster_path),
-                "rating": item.rating,
-                "source": "bd",
-                "generos": [g.nome for g in item.generos.all()],
-                "motivo": "Recomendado com base nos seus géneros mais avaliados."
-            })
-            continue
-
-        if isinstance(item, dict):
-
-            tmdb_id = item.get("id")
-            if not tmdb_id:
-                continue
-
-            details = tmdb_request(f"movie/{tmdb_id}")
-            if not details or not details.get("title"):
-                continue
-
-            generos = [g["name"] for g in details.get("genres", [])]
-
-            result.append({
-                "id": tmdb_id,
-                "titulo": details.get("title"),
-                "poster": tmdb_image_url(details.get("poster_path")),
-                "rating": details.get("vote_average"),
-                "source": "tmdb",
-                "generos": generos,
-                "motivo": "Trending global — adicionado para diversidade."
-            })
-            continue
-
-    return Response({"total": len(result), "recomendacoes": result,"pesos": genero_pesos})
