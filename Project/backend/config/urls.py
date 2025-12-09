@@ -49,7 +49,7 @@ urlpatterns = [
     path("api/movies/genres/", get_genres),
     path("api/movies/by_genres/", movies_by_genres),
 
-    path("api/movies/filter_by_rating/", filter_movies_by_rating),
+    path("api/movies/filter_by_rating/", filter_by_rating),
 
     path("api/movies/watched/", list_watched),
     path("api/movies/mark_watched/", mark_watched),

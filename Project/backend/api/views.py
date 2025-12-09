@@ -14,6 +14,8 @@ from django.conf import settings
 from django.contrib.auth.hashers import make_password,check_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
+
 
 
 from .serializers import (
@@ -599,85 +601,6 @@ def movies_by_genres(request):
     })
 
 
-@api_view(["GET"])
-def filter_movies_by_rating(request):
-    user = request.user if request.user.is_authenticated else None
-
-    min_rating = float(request.GET.get("min", 0))
-    max_rating = float(request.GET.get("max", 10))
-
-    filmes_bd = (
-        Filme.objects.filter(
-            rating__gte=min_rating,
-            rating__lte=max_rating
-        )
-        .prefetch_related("generos")
-    )
-
-    resultado = []
-    ids_existentes = set()
-
-    for filme in filmes_bd:
-        atividade = None
-        if user:
-            atividade = AtividadeUsuario.objects.filter(
-                usuario=user, filme=filme
-            ).first()
-
-        filme_dict = serialize_movie(filme, atividade)
-        filme_dict["source"] = "database"
-        resultado.append(filme_dict)
-
-        ids_existentes.add(filme.id)
-
-    MINIMO = 20  
-
-    if len(resultado) < MINIMO:
-        tmdb_data = tmdb_request("discover/movie", {
-            "vote_average.gte": min_rating,
-            "vote_average.lte": max_rating
-        })
-
-        for movie in tmdb_data.get("results", []):
-            tmdb_id = movie["id"]
-
-            if tmdb_id in ids_existentes:
-                continue  # evitar duplicados
-
-            filme, _ = Filme.objects.get_or_create(
-                id=tmdb_id,
-                defaults={
-                    "nome": movie.get("title"),
-                    "descricao": movie.get("overview", ""),
-                    "poster_path": movie.get("poster_path"),
-                    "rating": movie.get("vote_average"),
-                    "capa": b"",
-                }
-            )
-
-            atividade = None
-            if user:
-                atividade = AtividadeUsuario.objects.filter(
-                    usuario=user, filme=filme
-                ).first()
-
-            filme_dict = serialize_movie(filme, atividade)
-            filme_dict["source"] = "tmdb"  
-            resultado.append(filme_dict)
-
-            ids_existentes.add(tmdb_id)
-
-            if len(resultado) >= MINIMO:
-                break
-
-   
-    return Response({
-        "min_rating": min_rating,
-        "max_rating": max_rating,
-        "total": len(resultado),
-        "filmes": resultado
-    })
-
 
 
 #marcar e desmarcar filmes vistos
@@ -1088,3 +1011,112 @@ def recommendations_view(request):
 
 #### claude AI
 
+
+
+class RatingFilterPagination(PageNumberPagination):
+    page_size = 10
+    page_query_param = "page"
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
+@api_view(["GET"])
+def filter_by_rating(request):
+    """
+    GET /api/movies/filter_by_rating/?min_rating=<float>&max_rating=<float>&page=<int>&page_size=<int>
+
+    Filters films by the average user rating (average of AtividadeUsuario.rating).
+    - min_rating and max_rating are optional (defaults: 0 and 10).
+    - Values must be numeric and in [0, 10].
+    - Returns paginated JSON response with film info and avg_user_rating.
+    - Validation errors return HTTP 400 with a clear message.
+    """
+    # Parse query parameters with sensible defaults
+    min_raw = request.GET.get("min_rating", "")
+    max_raw = request.GET.get("max_rating", "")
+
+    # Default values
+    if min_raw == "":
+        min_rating = 0.0
+    else:
+        try:
+            min_rating = float(min_raw)
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "min_rating must be a number between 0 and 10."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    if max_raw == "":
+        max_rating = 10.0
+    else:
+        try:
+            max_rating = float(max_raw)
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "max_rating must be a number between 0 and 10."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    # Validate ranges
+    if not (0.0 <= min_rating <= 10.0):
+        return Response(
+            {"error": "min_rating must be between 0 and 10."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not (0.0 <= max_rating <= 10.0):
+        return Response(
+            {"error": "max_rating must be between 0 and 10."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if min_rating > max_rating:
+        return Response(
+            {"error": "min_rating cannot be greater than max_rating."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Build queryset: annotate with avg user rating and filter by it.
+    # Exclude films without user ratings (avg_user_rating is NULL).
+    films_qs = (
+        Filme.objects
+        .annotate(avg_user_rating=Avg("atividadeusuario__rating"))
+        .filter(
+            avg_user_rating__isnull=False,
+            avg_user_rating__gte=min_rating,
+            avg_user_rating__lte=max_rating,
+        )
+        .prefetch_related("generos")
+        .order_by("-avg_user_rating", "-rating", "id")
+    )
+
+    # Pagination
+    paginator = RatingFilterPagination()
+    page = paginator.paginate_queryset(films_qs, request)
+
+    # Serialization helper
+    def _serialize(film):
+        return {
+            "tmdb_id": film.id,
+            "titulo": film.nome,
+            "descricao": film.descricao,
+            "poster_url": tmdb_image_url(film.poster_path),
+            "rating_tmdb": film.rating,
+            "avg_user_rating": round(getattr(film, "avg_user_rating", 0.0), 2),
+            "generos": [g.nome for g in film.generos.all()],
+        }
+
+    results = [_serialize(f) for f in page] if page is not None else []
+
+    # Total matching results for client-side pagination
+    total_matching = films_qs.count()
+
+    response_payload = {
+        "min_rating": min_rating,
+        "max_rating": max_rating,
+        "total_results": total_matching,
+        "page": int(request.GET.get("page", 1)),
+        "page_size": paginator.get_page_size(request) or paginator.page_size,
+        "results": results,
+    }
+
+    return Response(response_payload, status=status.HTTP_200_OK)
