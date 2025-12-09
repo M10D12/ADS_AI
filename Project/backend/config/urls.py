@@ -47,7 +47,7 @@ urlpatterns = [
     path("api/movies/rate/<int:tmdb_id>/delete/", delete_rating, name="delete_rating"),
 
     path("api/movies/genres/", get_genres),
-    path("api/movies/by_genres/", movies_by_genres),
+    path("api/movies/by_genres/", get_genresAI),
 
     path("api/movies/filter_by_rating/", filter_by_rating),
 

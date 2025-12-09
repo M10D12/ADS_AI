@@ -516,91 +516,6 @@ def get_genres(request):
         return Response({"error": str(e)}, status=500)
 
 
-#Pesquisa de filmes por um ou + género
-@api_view(["GET"])
-def movies_by_genres(request):
-    user = request.user if request.user.is_authenticated else None
-
-    genres_param = request.GET.get("genres")
-
-    if not genres_param:
-        return Response({"error": "É necessário fornecer ?genres=ID1,ID2"}, status=400)
-
-    # Converter os IDs TMDB
-    try:
-        genre_ids = [int(g.strip()) for g in genres_param.split(",")]
-    except:
-        return Response({"error": "IDs de género inválidos"}, status=400)
-
-    # Buscar tabela oficial TMDB para converter IDs → nomes
-    tmdb_genres = tmdb_request("genre/movie/list").get("genres", [])
-    tmdb_map = {g["id"]: g["name"] for g in tmdb_genres}
-
-    # Converter ids TMDB → nomes reais usados na BD
-    genre_names = [tmdb_map.get(gid) for gid in genre_ids if gid in tmdb_map]
-
-    if not genre_names:
-        return Response({"error": "Nenhum género encontrado para os IDs fornecidos"}, status=400)
-
-    
-    filmes_bd = (
-        Filme.objects.filter(generos__nome__in=genre_names)
-        .prefetch_related("generos")
-        .distinct()
-    )
-
-    resultado = []
-    ids_existentes = set()
-
-    for filme in filmes_bd:
-        atividade = None
-        if user:
-            atividade = AtividadeUsuario.objects.filter(usuario=user, filme=filme).first()
-
-        filme_dict = serialize_movie(filme, atividade)
-        filme_dict["source"] = "database"
-        resultado.append(filme_dict)
-
-        ids_existentes.add(filme.id)
-
-    genre_string = ",".join(map(str, genre_ids))
-    tmdb_data = tmdb_request(f"discover/movie", {"with_genres": genre_string})
-
-    for movie in tmdb_data.get("results", []):
-        tmdb_id = movie["id"]
-
-        if tmdb_id in ids_existentes:
-            continue
-
-        filme, _ = Filme.objects.get_or_create(
-            id=tmdb_id,
-            defaults={
-                "nome": movie.get("title"),
-                "descricao": movie.get("overview", ""),
-                "poster_path": movie.get("poster_path"),
-                "rating": movie.get("vote_average"),
-                "capa": b"",
-            }
-        )
-
-        atividade = None
-        if user:
-            atividade = AtividadeUsuario.objects.filter(usuario=user, filme=filme).first()
-
-        filme_dict = serialize_movie(filme, atividade)
-        filme_dict["source"] = "tmdb"
-        resultado.append(filme_dict)
-
-        ids_existentes.add(tmdb_id)
-
-    return Response({
-        "genres_requested": genre_ids,
-        "genre_names": genre_names,
-        "total": len(resultado),
-        "filmes": resultado
-    })
-
-
 
 
 #marcar e desmarcar filmes vistos
@@ -917,6 +832,8 @@ def delete_review(request, tmdb_id):
     return Response({"message":"Review removida com sucesso"})
 
 
+########################################### AI
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_movie_recommendations(request):
@@ -1009,7 +926,6 @@ def recommendations_view(request):
     """Alias para compatibilidade com urls.py"""
     return get_movie_recommendations(request)
 
-#### claude AI
 
 
 
@@ -1120,3 +1036,60 @@ def filter_by_rating(request):
     }
 
     return Response(response_payload, status=status.HTTP_200_OK)
+
+@api_view(["GET"])
+def get_genres(request):
+    """
+    GET /api/movies/genres/
+
+    Devolve a lista completa de géneros existentes na base de dados local,
+    associados a filmes reais. Ordenados alfabeticamente, sem duplicações.
+
+    RF-02 (Gestão de Catálogo): Fornece catálogo de géneros disponíveis.
+    RF-05 (Pesquisa e Filtro): Suporta filtros dinâmicos por género.
+    US03 & US05: Permite ao frontend carregar géneros para seleção.
+
+    Retorna:
+        {
+            "total": <int>,
+            "genres": [
+                {"nome": "Ação", "descricao": "..."},
+                {"nome": "Comédia", "descricao": "..."},
+                ...
+            ]
+        }
+    """
+    try:
+        # Buscar apenas géneros associados a filmes existentes
+        genres = (
+            Genero.objects
+            .filter(filmes__isnull=False)  # Apenas com filmes associados
+            .distinct()  # Sem duplicações
+            .order_by("nome")  # Ordenado alfabeticamente
+        )
+
+        # Serializar com nome e descrição
+        genre_list = [
+            {
+                "nome": g.nome,
+                "descricao": g.descricao,
+            }
+            for g in genres
+        ]
+
+        return Response(
+            {
+                "total": len(genre_list),
+                "genres": genre_list,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    except Exception as e:
+        return Response(
+            {"error": "Erro ao obter géneros.", "detail": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+################ AI
