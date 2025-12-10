@@ -55,29 +55,6 @@ urlpatterns = [
     path("api/movies/delete_rating/", delete_rating, name="delete_rating"),
     path("api/movies/my_rated/", my_rated_movies, name="my_rated_movies"),
     path("api/movies/genres/", get_genres, name="get_genres"),
-    # path("api/movies/rate_tmdb/", rate_tmdb_movie),
-    # path("api/movies/rate/<int:tmdb_id>/", update_rating, name="update_rating"),
-    # path("api/movies/rate/<int:tmdb_id>/delete/", delete_rating, name="delete_rating"),
-
-    # path("api/movies/genres/", get_genres),
-    # path("api/movies/by_genres/", get_genres),
-
-    # path("api/movies/filter_by_rating/", filter_by_rating),
-
-    # path("api/movies/watched/", watched_movies),
-    # path("api/movies/mark_watched/", MarkWatchedView.as_view(), name="mark_watched"),
-    # path("api/movies/unmark_watched/", unmark_watched),
-
-    # path("api/movies/favorites/", list_favorites),
-    # path("api/movies/add_favorite/", add_favorite),
-    # path("api/movies/remove_favorite/", remove_favorite),
-    # path("api/movies/catalog/",movies_catalog),
-    # path("api/movies/history/",history),
-    # path("api/movies/<int:tmdb_id>/review/", add_review),
-    # path("api/movies/<int:tmdb_id>/review/delete/", delete_review),
-    # path("api/movies/<int:tmdb_id>/reviews/", list_reviews),
-    # path('api/movies/recommendations/', recommendations_view, name='movie-recommendations'),
-
 
     # Watch Later endpoints (RF-08)
     path("api/movies/watch_later/add/", add_watch_later, name="add_watch_later"),
