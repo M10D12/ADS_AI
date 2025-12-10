@@ -954,171 +954,238 @@ def rate_movie(request):
     return Response(response_data, status=response_status)
 
 
-# #Rate Movie
-# #ADD RATING A UM FILME DA TMDB E GUARDA NA BD 
-# @api_view(["POST"])
-# @permission_classes([IsAuthenticated])
-# def rate_tmdb_movie(request):
-#     user = request.user
-#     data = request.data
-
-#     if "tmdb_id" not in data or "rating" not in data:
-#         return Response({"error": "tmdb_id e rating são obrigatórios"}, status=400)
-
-#     tmdb_id = data["tmdb_id"]
-#     rating = int(data["rating"])
-
-#     if not (1 <= rating <= 10):
-#         return Response({"error": "Rating deve estar entre 1 e 10"}, status=400)
-
-#     # procura filme na TMDB
-#     tmdb_data = tmdb_request(f"movie/{tmdb_id}")
-#     if "id" not in tmdb_data:
-#         return Response({"error": "Filme não encontrado na TMDB"}, status=404)
-
-#     titulo = tmdb_data.get("title", "Sem título")
-#     descricao = tmdb_data.get("overview", "")
-#     generos_tmdb = tmdb_data.get("genres", [])
-#     poster_path = tmdb_data.get("poster_path")
-
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_rating(request):
+    user = request.user
     
-#     capa_bin = b""
-#     if poster_path:
-#         img_url = f"https://image.tmdb.org/t/p/w500{poster_path}"
-#         img_resp = requests.get(img_url)
-#         if img_resp.status_code == 200:
-#             capa_bin = img_resp.content
-
-#     # Criar filme na BD
-#     filme, created = Filme.objects.get_or_create(
-#         id=tmdb_id,
-#         defaults={
-#             "nome": titulo,
-#             "descricao": descricao,
-#             "rating": None,
-#             "capa": capa_bin,
-#             "poster_path": poster_path,
-#         }
-#     )
-
-#     # Guardar géneros
-#     for g in generos_tmdb:
-#         genre, _ = Genero.objects.get_or_create(
-#             nome=g["name"],
-#             defaults={"descricao": ""}
-#         )
-#         filme.generos.add(genre)
-
-#     # Atualizar rating do user
-#     atividade, created_act = AtividadeUsuario.objects.update_or_create(
-#         usuario=user,
-#         filme=filme,
-#         defaults={"rating": rating}
-#     )
-
-#     return Response({
-#         "message": "Rating registado" if created_act else "Rating atualizado",
-#         "filme": filme.nome,
-#         "rating": rating
-#     })
-
-# #My Rated Movies
-# #ENDPOINT PARA OBTER A LISTA DE FILMES AVALIADOS PELO USER
-# @api_view(["GET"])
-# @permission_classes([IsAuthenticated])
-# def my_rated_movies(request):
-#     user = request.user
-
-#     atividades = (
-#         AtividadeUsuario.objects
-#         .filter(usuario=user, rating__isnull=False)
-#         .select_related("filme")
-#         .prefetch_related("filme__generos")
-#     )
-
-#     resultado = [
-#         serialize_movie(atividade.filme, atividade)
-#         for atividade in atividades
-#     ]
-
-#     return Response({"filmes": resultado})
-
-
-
-# #Editar o rating
-# @api_view(["PUT"])
-# @permission_classes([IsAuthenticated])
-# def update_rating(request, tmdb_id):
-#     user = request.user
-#     data = request.data
-
-#     if "rating" not in data:
-#         return Response({"error": "rating é obrigatório"}, status=400)
-
-#     rating = int(data["rating"])
-
-#     if not (1 <= rating <= 10):
-#         return Response({"error": "Rating deve estar entre 1 e 10"}, status=400)
-
-#     try:
-#         filme = Filme.objects.get(id=tmdb_id)
-#     except Filme.DoesNotExist:
-#         return Response({"error": "Filme não encontrado"}, status=404)
-
-#     atividade, _ = AtividadeUsuario.objects.update_or_create(
-#         usuario=user,
-#         filme=filme,
-#         defaults={"rating": rating}
-#     )
-
-#     return Response({
-#         "message": "Rating atualizado",
-#         "filme": filme.nome,
-#         "rating": rating
-#     })
+    if 'movie_id' not in request.data:
+        return Response(
+            {"error": "O parâmetro 'movie_id' é obrigatório"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if 'rating' not in request.data:
+        return Response(
+            {"error": "O parâmetro 'rating' é obrigatório"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        movie_id = int(request.data.get('movie_id'))
+    except (ValueError, TypeError):
+        return Response(
+            {"error": "O parâmetro 'movie_id' deve ser um número inteiro"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if movie_id <= 0:
+        return Response(
+            {"error": "O parâmetro 'movie_id' deve ser um número positivo"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        rating = int(request.data.get('rating'))
+    except (ValueError, TypeError):
+        return Response(
+            {"error": "O parâmetro 'rating' deve ser um número inteiro"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if not (0 <= rating <= 10):
+        return Response(
+            {"error": "Rating deve estar entre 0 e 10"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        filme = Filme.objects.get(id=movie_id)
+    except Filme.DoesNotExist:
+        return Response(
+            {"error": "Filme não encontrado"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    try:
+        atividade = AtividadeUsuario.objects.get(usuario=user, filme=filme)
+    except AtividadeUsuario.DoesNotExist:
+        return Response(
+            {"error": "Não existe avaliação anterior para este filme"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    atividade.rating = rating
+    atividade.save(update_fields=['rating', 'updated_at'])
+    
+    rating_average = filme.get_rating_medio_usuarios()
+    total_ratings = filme.get_numero_avaliacoes()
+    
+    response_data = {
+        "message": "Avaliação atualizada com sucesso",
+        "movie_id": filme.id,
+        "movie_title": filme.nome,
+        "rating": rating,
+        "rating_average": rating_average,
+        "total_ratings": total_ratings,
+        "updated_at": atividade.updated_at.isoformat() if atividade.updated_at else None
+    }
+    
+    return Response(response_data, status=status.HTTP_200_OK)
 
 
-# #Delete Rating
-# @api_view(["DELETE"])
-# @permission_classes([IsAuthenticated])
-# def delete_rating(request, tmdb_id):
-#     user = request.user
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_rating(request):
+    user = request.user
+    
+    # Obter movie_id do corpo do pedido ou de query parameter
+    movie_id = None
+    
+    if request.data and 'movie_id' in request.data:
+        movie_id = request.data.get('movie_id')
+    elif 'movie_id' in request.GET:
+        movie_id = request.GET.get('movie_id')
+    
+    if movie_id is None:
+        return Response(
+            {"error": "O parâmetro 'movie_id' é obrigatório"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        movie_id = int(movie_id)
+    except (ValueError, TypeError):
+        return Response(
+            {"error": "O parâmetro 'movie_id' deve ser um número inteiro"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if movie_id <= 0:
+        return Response(
+            {"error": "O parâmetro 'movie_id' deve ser um número positivo"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        filme = Filme.objects.get(id=movie_id)
+    except Filme.DoesNotExist:
+        return Response(
+            {"error": "Filme não encontrado"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    try:
+        atividade = AtividadeUsuario.objects.get(usuario=user, filme=filme)
+    except AtividadeUsuario.DoesNotExist:
+        return Response(
+            {"error": "Não existe avaliação para este filme"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if atividade.rating is None:
+        return Response(
+            {"error": "Não existe avaliação para este filme"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Guardar dados antes da eliminação para a resposta
+    old_rating = atividade.rating
+    
+    # Remover o rating (manter o registo de atividade caso existam outras interações)
+    atividade.rating = None
+    atividade.save(update_fields=['rating', 'updated_at'])
+    
+    # Recalcular a média do filme após remoção
+    rating_average = filme.get_rating_medio_usuarios()
+    total_ratings = filme.get_numero_avaliacoes()
+    
+    response_data = {
+        "message": "Avaliação removida com sucesso",
+        "movie_id": filme.id,
+        "movie_title": filme.nome,
+        "removed_rating": old_rating,
+        "rating_average": rating_average,
+        "total_ratings": total_ratings,
+        "deleted_at": atividade.updated_at.isoformat() if atividade.updated_at else None
+    }
+    
+    return Response(response_data, status=status.HTTP_200_OK)
 
-#     try:
-#         atividade = AtividadeUsuario.objects.get(usuario=user, filme__id=tmdb_id)
-#     except AtividadeUsuario.DoesNotExist:
-#         return Response({"error": "Este filme não tem rating registado pelo user"}, status=404)
 
-#     atividade.rating = None
-#     atividade.save()
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_rated_movies(request):
+    user = request.user
+    
+    try:
+        atividades = (
+            AtividadeUsuario.objects
+            .filter(usuario=user, rating__isnull=False)
+            .select_related('filme')
+            .prefetch_related('filme__generos')
+            .order_by('-updated_at')
+        )
+        
+        results = []
+        for atividade in atividades:
+            try:
+                filme = atividade.filme
+                results.append({
+                    "id": filme.id,
+                    "title": filme.nome,
+                    "overview": filme.descricao,
+                    "genres": [g.nome for g in filme.generos.all()],
+                    "poster_path": filme.poster_path,
+                    "poster_url": f"https://image.tmdb.org/t/p/w500{filme.poster_path}" if filme.poster_path else None,
+                    "tmdb_rating": filme.rating_tmdb,
+                    "user_rating": atividade.rating,
+                    "release_date": filme.ano_lancamento,
+                    "rated_at": atividade.updated_at.isoformat() if atividade.updated_at else None
+                })
+            except Exception:
+                continue
+        
+        return Response({
+            "total": len(results),
+            "results": results
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return Response(
+            {"error": "Erro ao obter filmes avaliados"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
-#     return Response({"message": "Rating removido com sucesso"})
 
-
-
-
-# #Filtragem de movies por género 
-
-# #Disponibiliza todos os generos que estão no TMDB
-# @api_view(["GET"])
-# def get_genres(request):
-#     """
-#     Devolve todos os géneros disponíveis na TMDB para que o frontend
-#     possa criar filtros por género.
-#     """
-#     try:
-#         response = tmdb_request("genre/movie/list")
-#         genres = response.get("genres", [])
-
-#         # Apenas devolvemos id + nome, limpo
-#         return Response({
-#             "total": len(genres),
-#             "genres": genres
-#         })
-
-#     except Exception as e:
-#         return Response({"error": str(e)}, status=500)
-
+@api_view(['GET'])
+def get_genres(request):
+    try:
+        genres = (
+            Genero.objects
+            .all()
+            .order_by('nome')
+            .distinct()
+        )
+        
+        genre_list = [
+            {
+                'nome': g.nome,
+                'descricao': g.descricao or ''
+            }
+            for g in genres
+        ]
+        
+        return Response({
+            'total': len(genre_list),
+            'genres': genre_list
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return Response(
+            {'error': 'Erro ao obter géneros', 'detail': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 # @api_view(["GET"])
 # @permission_classes([IsAuthenticated])

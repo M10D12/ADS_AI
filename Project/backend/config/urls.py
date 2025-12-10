@@ -50,8 +50,11 @@ urlpatterns = [
     path('api/movies/<int:movie_id>/', movie_details),
     path("api/movies/trending/", trending_movies, name="trending_movies"),
     path("api/movies/rate/", rate_movie, name="rate_movie"),
+    path("api/movies/update_rating/", update_rating, name="update_rating"),
+    path("api/movies/delete_rating/", delete_rating, name="delete_rating"),
+    path("api/movies/my_rated/", my_rated_movies, name="my_rated_movies"),
+    path("api/movies/genres/", get_genres, name="get_genres"),
     # path("api/movies/rate_tmdb/", rate_tmdb_movie),
-    # path("api/movies/my-rated/", my_rated_movies, name="my_rated_movies"),
     # path("api/movies/rate/<int:tmdb_id>/", update_rating, name="update_rating"),
     # path("api/movies/rate/<int:tmdb_id>/delete/", delete_rating, name="delete_rating"),
 
