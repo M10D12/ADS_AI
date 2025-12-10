@@ -27,6 +27,7 @@ from rest_framework_simplejwt.views import TokenRefreshView, TokenObtainPairView
 # Router para ViewSets
 router = routers.DefaultRouter()
 router.register(r'favorites', FavoriteViewSet, basename='favorite')
+router.register(r'history/watched', HistoryWatchedViewSet, basename='history-watched')
 
 @api_view(['GET'])
 def api_status(request):
@@ -64,7 +65,7 @@ urlpatterns = [
     # path("api/movies/filter_by_rating/", filter_by_rating),
 
     # path("api/movies/watched/", watched_movies),
-    path("api/movies/mark_watched/", MarkWatchedView.as_view(), name="mark_watched"),
+    # path("api/movies/mark_watched/", MarkWatchedView.as_view(), name="mark_watched"),
     # path("api/movies/unmark_watched/", unmark_watched),
 
     # path("api/movies/favorites/", list_favorites),
@@ -78,9 +79,19 @@ urlpatterns = [
     # path('api/movies/recommendations/', recommendations_view, name='movie-recommendations'),
 
 
-    # path("api/movies/watch_later/add/", add_watch_later),
-    # path("api/movies/watch_later/remove/", remove_watch_later),
-    # path("api/movies/watch_later/", list_watch_later),
+    # Watch Later endpoints (RF-08)
+    path("api/movies/watch_later/add/", add_watch_later, name="add_watch_later"),
+    path("api/movies/watch_later/remove/", remove_watch_later, name="remove_watch_later"),
+    path("api/movies/watch_later/", list_watch_later, name="list_watch_later"),
+    
+    # Reviews endpoints (RF-04)
+    path("api/movies/reviews/add/", add_review, name="add_review"),
+    path("api/movies/<int:movie_id>/reviews/", list_reviews, name="list_reviews"),
+    path("api/movies/<int:movie_id>/reviews/delete/", delete_review, name="delete_review"),
+    
+    # Recommendations endpoint (RF-10)
+    path('api/movies/recommendations/', get_movie_recommendations, name='get_movie_recommendations'),
+    
     path("api/movies/details/<int:movie_id>/", movie_details, name="movie_details"),
 
 

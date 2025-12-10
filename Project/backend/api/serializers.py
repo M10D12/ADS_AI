@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
-from .models import Usuario, Filme, Genero, AtividadeUsuario, Favorito
+from .models import Usuario, Filme, Genero, AtividadeUsuario, Favorito, HistoricoVisualizacao
 
 
 # ============================================================================
@@ -442,6 +442,92 @@ class FavoriteSerializer(serializers.ModelSerializer):
                 "Filme com este ID não foi encontrado."
             )
         return value
+
+
+class WatchLaterSerializer(serializers.ModelSerializer):
+    """
+    Serializer para lista Ver Mais Tarde.
+    
+    Requisito R08: Watchlist
+    """
+    filme = FilmeResumidoSerializer(read_only=True)
+    movie_id = serializers.IntegerField(write_only=True, required=True)
+    
+    class Meta:
+        model = AtividadeUsuario
+        fields = [
+            'id',
+            'movie_id',
+            'filme',
+            'ver_mais_tarde',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'filme', 'created_at']
+    
+    def validate_movie_id(self, value):
+        if not Filme.objects.filter(id=value).exists():
+            raise serializers.ValidationError(
+                "Filme com este ID não foi encontrado."
+            )
+        return value
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    """
+    Serializer para reviews de filmes.
+    
+    Requisito R04: Avaliações e Reviews
+    """
+    usuario = UsuarioResumidoSerializer(read_only=True)
+    filme = FilmeResumidoSerializer(read_only=True)
+    movie_id = serializers.IntegerField(write_only=True, required=True)
+    
+    class Meta:
+        model = AtividadeUsuario
+        fields = [
+            'id',
+            'movie_id',
+            'usuario',
+            'filme',
+            'review',
+            'rating',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'usuario', 'filme', 'created_at', 'updated_at']
+    
+    def validate_movie_id(self, value):
+        if not Filme.objects.filter(id=value).exists():
+            raise serializers.ValidationError(
+                "Filme com este ID não foi encontrado."
+            )
+        return value
+    
+    def validate_review(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError(
+                "Review não pode estar vazia."
+            )
+        return value.strip()
+
+
+class HistoryItemSerializer(serializers.ModelSerializer):
+    """
+    Serializer para itens do histórico de visualizações.
+    
+    Requisito R09: Histórico de Interação
+    """
+    filme = FilmeResumidoSerializer(read_only=True)
+    
+    class Meta:
+        model = HistoricoVisualizacao
+        fields = [
+            'id',
+            'filme',
+            'data_visualizacao',
+            'completo',
+        ]
+        read_only_fields = ['id', 'filme', 'data_visualizacao']
 
 
 class AdicionarFavoritoSerializer(serializers.Serializer):

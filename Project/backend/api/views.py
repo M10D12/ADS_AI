@@ -23,7 +23,8 @@ from rest_framework.pagination import PageNumberPagination
 
 from .serializers import (
     UsuarioSerializer, FilmeSerializer, GeneroSerializer,
-    AtividadeUsuarioSerializer, FavoriteSerializer
+    AtividadeUsuarioSerializer, FavoriteSerializer, WatchLaterSerializer,
+    ReviewSerializer, HistoryItemSerializer
 )
 
 # Create your views here.
@@ -1187,1002 +1188,6 @@ def get_genres(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-# @api_view(["GET"])
-# @permission_classes([IsAuthenticated])
-# def history(request):
-#     user = request.user
-
-#     atividades = (
-#         AtividadeUsuario.objects
-#         .filter(usuario=user)
-#         .select_related("filme")
-#     )
-
-#     resultado = []
-
-#     for a in atividades:
-#         filme_data = serialize_movie(a.filme, a)
-
-#         filme_data["tipo"] = (
-#             "rating" if a.rating is not None else
-#             "visto" if a.visto else
-#             "favorito" if a.favorito else
-#             "ver_mais_tarde" if a.ver_mais_tarde else
-#             "atividade"
-#         )
-
-#         resultado.append(filme_data)
-
-#     return Response({
-#         "total": len(resultado),
-#         "history": resultado
-#     })
-
-
-
-
-# @api_view(["POST"])
-# @permission_classes([IsAuthenticated])
-# def add_watch_later(request):
-#     user = request.user
-#     tmdb_id = request.data.get("tmdb_id")
-
-#     if not tmdb_id:
-#         return Response({"error": "tmdb_id é obrigatório"}, status=400)
-
-#     filme, _ = Filme.objects.get_or_create(id=tmdb_id)
-
-#     atividade, _ = AtividadeUsuario.objects.update_or_create(
-#         usuario=user,
-#         filme=filme,
-#         defaults={"ver_mais_tarde": True}
-#     )
-
-#     return Response({"message": "Adicionado à lista Ver Mais Tarde"})
-
-
-# @api_view(["POST"])
-# @permission_classes([IsAuthenticated])
-# def remove_watch_later(request):
-#     user = request.user
-#     tmdb_id = request.data.get("tmdb_id")
-
-#     if not tmdb_id:
-#         return Response({"error": "tmdb_id é obrigatório"}, status=400)
-
-#     try:
-#         atividade = AtividadeUsuario.objects.get(usuario=user, filme_id=tmdb_id)
-#         atividade.ver_mais_tarde = False
-#         atividade.save()
-#     except AtividadeUsuario.DoesNotExist:
-#         return Response({"error": "Filme não estava na lista Ver Mais Tarde"}, status=404)
-
-#     return Response({"message": "Removido da lista Ver Mais Tarde"})
-
-
-# @api_view(["GET"])
-# @permission_classes([IsAuthenticated])
-# def list_watch_later(request):
-#     user = request.user
-
-#     atividades = (
-#         AtividadeUsuario.objects
-#         .filter(usuario=user, ver_mais_tarde=True)
-#         .select_related("filme")
-#     )
-
-#     filmes = [
-#         serialize_movie(a.filme, a)
-#         for a in atividades
-#     ]
-
-#     return Response({"watch_later": filmes})
-
-# @api_view(["POST"])
-# @permission_classes([IsAuthenticated])
-# def add_review(request, tmdb_id):
-#     user= request.user
-#     review_text= request.data.get("review")
-
-#     if review_text is None or review_text.strip() == "":
-#         return Response({"error":"review não pode ser vazia"},status=400)
-    
-#     filme,_= Filme.objects.get_or_create(id=tmdb_id)
-
-#     atividade, created= AtividadeUsuario.objects.update_or_create(
-#         usuario=user,
-#         filme=filme,
-#         defaults={"review":review_text}
-#     )
-
-#     return Response({
-#         "message":"Review adicionada" if created else "Review atualizada",
-#         "filme":filme.nome,
-#         "review":review_text
-#     })
-
-# @api_view(["GET"])
-# def list_reviews(request, tmdb_id):
-#     atividades = (
-#         AtividadeUsuario.objects
-#         .filter(filme_id=tmdb_id)
-#         .select_related("usuario")
-#     )
-
-#     reviews = [
-#         {
-#             "user_id": a.usuario.id,
-#             "user_nome": a.usuario.nome,
-#             "comentario": a.review
-#         }
-#         for a in atividades
-#     ]
-
-#     return Response({
-#         "tmdb_id": tmdb_id,
-#         "total_reviews": len(reviews),
-#         "reviews": reviews
-#     })
-
-
-# @api_view(["DELETE"])
-# @permission_classes([IsAuthenticated])
-# def delete_review(request, tmdb_id):
-#     user= request.user
-
-#     try:
-#         atividade= AtividadeUsuario.objects.get(
-#             usuario=user,
-#             filme__id=tmdb_id,
-#         )
-#     except AtividadeUsuario.DoesNotExist:
-#         return Response({"error":"Review não encontrada"},status=404)
-    
-#     atividade.review= None
-#     atividade.save()
-
-#     return Response({"message":"Review removida com sucesso"})
-
-
-# ########################################### AI
-
-# @api_view(['GET'])
-# @permission_classes([IsAuthenticated])
-# def get_movie_recommendations(request):
-#     """
-#     Endpoint de recomendações personalizadas para utilizador autenticado.
-    
-#     RF-10 (Motor de Recomendação): Recomendações baseadas em avaliações > 7.5
-#     RF-11 (Tendências/Populares): Fallback para filmes populares se < 3 avaliações
-    
-#     Casos de teste:
-#     - >= 3 avaliações positivas: recomendações por género
-#     - < 3 avaliações positivas: filmes populares como fallback
-#     - Sem filmes recomendáveis: lista vazia
-#     - Não autenticado: HTTP 401 Unauthorized
-    
-#     Performance: tempo resposta ≤ 800ms
-#     """
-#     user = request.user
-    
-#     # Buscar avaliações positivas do utilizador (rating > 7.5)
-#     high_ratings = AtividadeUsuario.objects.filter(
-#         usuario=user,
-#         rating__gt=7.5
-#     ).select_related('filme').prefetch_related('filme__generos')
-    
-#     num_high_ratings = high_ratings.count()
-    
-#     # Obter IDs de filmes que o utilizador já avaliou (para exclusão)
-#     filmes_avaliados_ids = AtividadeUsuario.objects.filter(
-#         usuario=user,
-#         rating__isnull=False
-#     ).values_list('filme_id', flat=True)
-    
-#     # Caso 1: Utilizador tem >= 3 avaliações positivas
-#     if num_high_ratings >= 3:
-#         # Extrair géneros dos filmes bem avaliados usando tuple (hashable)
-#         generos_ids = tuple()
-        
-#         for atividade in high_ratings:
-#             filme = atividade.filme
-#             for genero in filme.generos.all():
-#                 if genero.nome not in generos_ids:
-#                     generos_ids = generos_ids + (genero.nome,)
-        
-#         if generos_ids:
-#             # Filmes com géneros similares, excluindo os já avaliados
-#             filmes_recomendados = (
-#                 Filme.objects
-#                 .filter(generos__nome__in=generos_ids)
-#                 .exclude(id__in=filmes_avaliados_ids)
-#                 .prefetch_related('generos')
-#                 .distinct()
-#                 .order_by('-rating')[:20]
-#             )
-#         else:
-#             filmes_recomendados = Filme.objects.none()
-    
-#     # Caso 2: Utilizador tem < 3 avaliações positivas (fallback para populares)
-#     else:
-#         # Filmes populares (maior rating do TMDB), excluindo os já avaliados
-#         filmes_recomendados = (
-#             Filme.objects
-#             .exclude(id__in=filmes_avaliados_ids)
-#             .prefetch_related('generos')
-#             .order_by('-rating')[:20]
-#         )
-    
-#     # Serializar filmes recomendados
-#     resultado = []
-#     for filme in filmes_recomendados:
-#         filme_dict = {
-#             "tmdb_id": filme.id,
-#             "titulo": filme.nome,
-#             "descricao": filme.descricao,
-#             "poster_url": tmdb_image_url(filme.poster_path),
-#             "rating_tmdb": filme.rating,
-#             "generos": [g.nome for g in filme.generos.all()],
-#         }
-#         resultado.append(filme_dict)
-    
-#     return Response({
-#         "num_user_ratings": num_high_ratings,
-#         "recommendation_type": "personalized" if num_high_ratings >= 3 else "popular",
-#         "total": len(resultado),
-#         "recommendations": resultado
-#     })
-
-
-# def recommendations_view(request):
-#     """Alias para compatibilidade com urls.py"""
-#     return get_movie_recommendations(request)
-
-
-
-
-# class RatingFilterPagination(PageNumberPagination):
-#     page_size = 10
-#     page_query_param = "page"
-#     page_size_query_param = "page_size"
-#     max_page_size = 100
-
-
-# @api_view(["GET"])
-# def filter_by_rating(request):
-#     """
-#     GET /api/movies/filter_by_rating/?min_rating=<float>&max_rating=<float>&page=<int>&page_size=<int>
-
-#     Filters films by the average user rating (average of AtividadeUsuario.rating).
-#     - min_rating and max_rating are optional (defaults: 0 and 10).
-#     - Values must be numeric and in [0, 10].
-#     - Returns paginated JSON response with film info and avg_user_rating.
-#     - Validation errors return HTTP 400 with a clear message.
-#     """
-#     # Parse query parameters with sensible defaults
-#     min_raw = request.GET.get("min_rating", "")
-#     max_raw = request.GET.get("max_rating", "")
-
-#     # Default values
-#     if min_raw == "":
-#         min_rating = 0.0
-#     else:
-#         try:
-#             min_rating = float(min_raw)
-#         except (TypeError, ValueError):
-#             return Response(
-#                 {"error": "min_rating must be a number between 0 and 10."},
-#                 status=status.HTTP_400_BAD_REQUEST,
-#             )
-
-#     if max_raw == "":
-#         max_rating = 10.0
-#     else:
-#         try:
-#             max_rating = float(max_raw)
-#         except (TypeError, ValueError):
-#             return Response(
-#                 {"error": "max_rating must be a number between 0 and 10."},
-#                 status=status.HTTP_400_BAD_REQUEST,
-#             )
-
-#     # Validate ranges
-#     if not (0.0 <= min_rating <= 10.0):
-#         return Response(
-#             {"error": "min_rating must be between 0 and 10."},
-#             status=status.HTTP_400_BAD_REQUEST,
-#         )
-#     if not (0.0 <= max_rating <= 10.0):
-#         return Response(
-#             {"error": "max_rating must be between 0 and 10."},
-#             status=status.HTTP_400_BAD_REQUEST,
-#         )
-#     if min_rating > max_rating:
-#         return Response(
-#             {"error": "min_rating cannot be greater than max_rating."},
-#             status=status.HTTP_400_BAD_REQUEST,
-#         )
-
-#     # Build queryset: annotate with avg user rating and filter by it.
-#     # Exclude films without user ratings (avg_user_rating is NULL).
-#     films_qs = (
-#         Filme.objects
-#         .annotate(avg_user_rating=Avg("atividadeusuario__rating"))
-#         .filter(
-#             avg_user_rating__isnull=False,
-#             avg_user_rating__gte=min_rating,
-#             avg_user_rating__lte=max_rating,
-#         )
-#         .prefetch_related("generos")
-#         .order_by("-avg_user_rating", "-rating", "id")
-#     )
-
-#     # Pagination
-#     paginator = RatingFilterPagination()
-#     page = paginator.paginate_queryset(films_qs, request)
-
-#     # Serialization helper
-#     def _serialize(film):
-#         return {
-#             "tmdb_id": film.id,
-#             "titulo": film.nome,
-#             "descricao": film.descricao,
-#             "poster_url": tmdb_image_url(film.poster_path),
-#             "rating_tmdb": film.rating,
-#             "avg_user_rating": round(getattr(film, "avg_user_rating", 0.0), 2),
-#             "generos": [g.nome for g in film.generos.all()],
-#         }
-
-#     results = [_serialize(f) for f in page] if page is not None else []
-
-#     # Total matching results for client-side pagination
-#     total_matching = films_qs.count()
-
-#     response_payload = {
-#         "min_rating": min_rating,
-#         "max_rating": max_rating,
-#         "total_results": total_matching,
-#         "page": int(request.GET.get("page", 1)),
-#         "page_size": paginator.get_page_size(request) or paginator.page_size,
-#         "results": results,
-#     }
-
-#     return Response(response_payload, status=status.HTTP_200_OK)
-
-# @api_view(["GET"])
-# def get_genres(request):
-#     """
-#     GET /api/movies/genres/
-
-#     Devolve a lista completa de géneros existentes na base de dados local,
-#     associados a filmes reais. Ordenados alfabeticamente, sem duplicações.
-
-#     RF-02 (Gestão de Catálogo): Fornece catálogo de géneros disponíveis.
-#     RF-05 (Pesquisa e Filtro): Suporta filtros dinâmicos por género.
-#     US03 & US05: Permite ao frontend carregar géneros para seleção.
-
-#     Retorna:
-#         {
-#             "total": <int>,
-#             "genres": [
-#                 {"nome": "Ação", "descricao": "..."},
-#                 {"nome": "Comédia", "descricao": "..."},
-#                 ...
-#             ]
-#         }
-#     """
-#     try:
-#         # Buscar apenas géneros associados a filmes existentes
-#         genres = (
-#             Genero.objects
-#             .filter(filmes__isnull=False)  # Apenas com filmes associados
-#             .distinct()  # Sem duplicações
-#             .order_by("nome")  # Ordenado alfabeticamente
-#         )
-
-#         # Serializar com nome e descrição
-#         genre_list = [
-#             {
-#                 "nome": g.nome,
-#                 "descricao": g.descricao,
-#             }
-#             for g in genres
-#         ]
-
-#         return Response(
-#             {
-#                 "total": len(genre_list),
-#                 "genres": genre_list,
-#             },
-#             status=status.HTTP_200_OK,
-#         )
-
-#     except Exception as e:
-#         return Response(
-#             {"error": "Erro ao obter géneros.", "detail": str(e)},
-#             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#         )
-    
-
-
-
-
-# @api_view(['GET'])
-# @permission_classes([IsAuthenticated])
-# def watched_movies(request):
-#     """
-#     Endpoint para obter a lista de filmes que o utilizador autenticado já visualizou.
-    
-#     Requisitos cumpridos:
-#     - RF-09: Histórico de Interação
-#     - RF-02: Autenticação (apenas utilizadores autenticados)
-#     - RF-04: Explorar Catálogo
-    
-#     GET /api/movies/watched/
-    
-#     Autenticação: Obrigatória (Bearer Token JWT)
-    
-#     Response (HTTP 200 - Com histórico):
-#     {
-#         "total": 5,
-#         "results": [
-#             {
-#                 "tmdb_id": 550,
-#                 "titulo": "Fight Club",
-#                 "descricao": "An insomniac office worker...",
-#                 "poster_url": "https://image.tmdb.org/t/p/w500/...",
-#                 "generos": ["Drama", "Thriller"],
-#                 "tmdb_rating": 8.8,
-#                 "user_rating": 9,
-#                 "review": "Filme excelente!",
-#                 "visto": true
-#             },
-#             ...
-#         ]
-#     }
-    
-#     Response (HTTP 200 - Sem histórico):
-#     {
-#         "total": 0,
-#         "results": []
-#     }
-    
-#     Response (HTTP 401):
-#     {"detail": "As credenciais de autenticação não foram fornecidas."}
-    
-#     Comportamento:
-#     - Filtra apenas filmes com visto=True do utilizador autenticado
-#     - Ordenação decrescente por ID (mais recente primeiro)
-#     - Ignora itens inválidos, continua processamento
-#     - Valida relação utilizador-filme
-#     - Queries otimizadas (select_related, prefetch_related)
-#     - Sem falhas por dados inválidos
-#     """
-    
-#     user = request.user
-    
-#     try:
-#         # Buscar todas as atividades do utilizador com filmes marcados como visto
-#         # select_related otimiza a relação com Filme (join)
-#         # prefetch_related otimiza a relação ManyToMany com Generos
-#         atividades = (
-#             AtividadeUsuario.objects
-#             .filter(usuario=user, visto=True)
-#             .select_related('filme')
-#             .prefetch_related('filme__generos')
-#             .order_by('-id')  # Ordenação decrescente por ID (mais recente primeiro)
-#         )
-        
-#         # Construir lista de resposta com tratamento robusto de erros
-#         watched_list = []
-        
-#         for atividade in atividades:
-#             try:
-#                 # Validar existência do filme (relação integridade)
-#                 if not atividade.filme:
-#                     continue  # Ignorar se filme não existe
-                
-#                 filme = atividade.filme
-                
-#                 # Construir objeto de resposta com dados essenciais
-#                 watched_item = {
-#                     "tmdb_id": filme.id,
-#                     "titulo": filme.nome if filme.nome else "Sem título",
-#                     "descricao": filme.descricao if filme.descricao else "",
-#                     "poster_url": tmdb_image_url(filme.poster_path),
-#                     "generos": [g.nome for g in filme.generos.all()],
-#                     "tmdb_rating": filme.rating if filme.rating is not None else None,
-#                     "user_rating": atividade.rating if atividade.rating is not None else None,
-#                     "review": atividade.review if atividade.review else None,
-#                     "visto": atividade.visto,
-#                 }
-                
-#                 watched_list.append(watched_item)
-                
-#             except Exception as e:
-#                 # Ignorar itens inválidos e continuar processamento
-#                 # Evita falhas por dados corrompidos ou faltantes
-#                 continue
-        
-#         # Retornar resposta estruturada
-#         return Response({
-#             "total": len(watched_list),
-#             "results": watched_list
-#         }, status=status.HTTP_200_OK)
-    
-#     except Exception as e:
-#         # Erro crítico no processamento (raro com try/except interno)
-#         return Response(
-#             {"error": "Erro ao obter histórico de visualizações", "detail": str(e)},
-#             status=status.HTTP_500_INTERNAL_SERVER_ERROR
-#         )
-    
-
-
-# @api_view(['POST'])
-# @permission_classes([IsAuthenticated])
-# def add_favorite(request):
-#     """
-#     Endpoint para adicionar um filme à lista de favoritos do utilizador autenticado.
-    
-#     Requisitos cumpridos:
-#     - RF-08: Favoritos / Watchlist
-#     - RF-02: Autenticação (apenas utilizadores autenticados)
-#     - RF-06: Detalhe de Item
-    
-#     POST /api/movies/favorites/add/
-    
-#     Autenticação: Obrigatória (Bearer Token JWT)
-    
-#     Request Body:
-#     {
-#         "movie_id": 550
-#     }
-    
-#     Response (HTTP 201 - Sucesso):
-#     {
-#         "message": "Filme adicionado aos favoritos com sucesso",
-#         "favorite": {
-#             "tmdb_id": 550,
-#             "titulo": "Fight Club",
-#             "descricao": "An insomniac office worker...",
-#             "poster_url": "https://image.tmdb.org/t/p/w500/...",
-#             "generos": ["Drama", "Thriller"],
-#             "tmdb_rating": 8.8,
-#             "user_rating": null,
-#             "favorito": true,
-#             "visto": false,
-#             "ver_mais_tarde": false
-#         }
-#     }
-    
-#     Response (HTTP 400 - Filme já nos favoritos):
-#     {
-#         "error": "Este filme já está na sua lista de favoritos"
-#     }
-    
-#     Response (HTTP 404 - Filme não existe):
-#     {
-#         "error": "Filme não encontrado na base de dados"
-#     }
-    
-#     Response (HTTP 400 - Input inválido):
-#     {
-#         "error": "movie_id é obrigatório"
-#     }
-    
-#     Response (HTTP 401 - Não autenticado):
-#     {"detail": "As credenciais de autenticação não foram fornecidas."}
-    
-#     Comportamento:
-#     - Valida presença e tipo do movie_id
-#     - Verifica existência do filme na BD
-#     - Previne duplicados (filme já favorito)
-#     - Cria registo AtividadeUsuario com favorito=True
-#     - Retorna dados completos do filme em caso de sucesso
-#     - Queries otimizadas (select_related, prefetch_related)
-#     - Mensagens de erro claras e específicas
-#     - Conformidade com código existente
-#     """
-    
-#     user = request.user
-#     data = request.data
-    
-#     # Validar presença do movie_id
-#     if "movie_id" not in data:
-#         return Response(
-#             {"error": "movie_id é obrigatório"},
-#             status=status.HTTP_400_BAD_REQUEST
-#         )
-    
-#     # Validar tipo e extrair movie_id
-#     try:
-#         movie_id = int(data["movie_id"])
-#         if movie_id <= 0:
-#             raise ValueError("movie_id deve ser positivo")
-#     except (ValueError, TypeError):
-#         return Response(
-#             {"error": "movie_id deve ser um inteiro válido e positivo"},
-#             status=status.HTTP_400_BAD_REQUEST
-#         )
-    
-#     # Verificar existência do filme na base de dados
-#     try:
-#         filme = Filme.objects.select_related().prefetch_related('generos').get(id=movie_id)
-#     except Filme.DoesNotExist:
-#         return Response(
-#             {"error": "Filme não encontrado na base de dados"},
-#             status=status.HTTP_404_NOT_FOUND
-#         )
-    
-#     # Verificar se o filme já está nos favoritos do utilizador
-#     atividade_existente = AtividadeUsuario.objects.filter(
-#         usuario=user,
-#         filme=filme,
-#         favorito=True
-#     ).first()
-    
-#     if atividade_existente:
-#         return Response(
-#             {"error": "Este filme já está na sua lista de favoritos"},
-#             status=status.HTTP_400_BAD_REQUEST
-#         )
-    
-#     # Criar ou atualizar registo de atividade
-#     atividade, created = AtividadeUsuario.objects.update_or_create(
-#         usuario=user,
-#         filme=filme,
-#         defaults={"favorito": True}
-#     )
-    
-#     # Serializar resposta com dados completos do filme
-#     filme_data = serialize_movie(filme, atividade)
-    
-#     return Response({
-#         "message": "Filme adicionado aos favoritos com sucesso",
-#         "favorite": filme_data
-#     }, status=status.HTTP_201_CREATED)
-
-
-
-# @api_view(['DELETE'])
-# @permission_classes([IsAuthenticated])
-# def remove_favorite(request):
-#     """
-#     Endpoint para remover um filme da lista de favoritos do utilizador autenticado.
-    
-#     Requisitos cumpridos:
-#     - RF-08: Favoritos / Watchlist
-#     - RF-02: Autenticação (apenas utilizadores autenticados)
-#     - RF-06: Detalhe de Item
-    
-#     DELETE /api/movies/favorites/remove/
-    
-#     Autenticação: Obrigatória (Bearer Token JWT)
-    
-#     Request Body ou Query Parameter:
-#     {
-#         "movie_id": 550
-#     }
-#     OU
-#     ?movie_id=550
-    
-#     Response (HTTP 200 - Sucesso):
-#     {
-#         "message": "Filme removido dos favoritos com sucesso",
-#         "movie_id": 550,
-#         "titulo": "Fight Club"
-#     }
-    
-#     Response (HTTP 400 - Filme não está nos favoritos):
-#     {
-#         "error": "Este filme não está na sua lista de favoritos"
-#     }
-    
-#     Response (HTTP 404 - Filme não existe):
-#     {
-#         "error": "Filme não encontrado na base de dados"
-#     }
-    
-#     Response (HTTP 400 - Input inválido):
-#     {
-#         "error": "movie_id é obrigatório"
-#     }
-    
-#     Response (HTTP 401 - Não autenticado):
-#     {"detail": "As credenciais de autenticação não foram fornecidas."}
-    
-#     Comportamento:
-#     - Aceita movie_id no corpo (JSON) ou em parâmetro query
-#     - Valida presença e tipo do movie_id
-#     - Verifica existência do filme na BD
-#     - Verifica se o filme está efetivamente na lista de favoritos
-#     - Remove apenas o flag favorito, mantendo o registo de atividade
-#     - Operação idempotente: removição repetida sempre segura
-#     - Queries otimizadas (select_related, prefetch_related)
-#     - Mensagens de erro claras e específicas
-#     - Conformidade com código existente
-#     """
-    
-#     user = request.user
-    
-#     # Obter movie_id do corpo do pedido ou de query parameter
-#     movie_id = None
-    
-#     if request.method == 'DELETE':
-#         # Tentar obter do corpo do pedido (JSON)
-#         if request.data:
-#             movie_id = request.data.get("movie_id")
-        
-#         # Se não encontrou no corpo, tentar query parameter
-#         if movie_id is None:
-#             movie_id = request.GET.get("movie_id")
-    
-#     # Validar presença do movie_id
-#     if movie_id is None:
-#         return Response(
-#             {"error": "movie_id é obrigatório"},
-#             status=status.HTTP_400_BAD_REQUEST
-#         )
-    
-#     # Validar tipo e extrair movie_id
-#     try:
-#         movie_id = int(movie_id)
-#         if movie_id <= 0:
-#             raise ValueError("movie_id deve ser positivo")
-#     except (ValueError, TypeError):
-#         return Response(
-#             {"error": "movie_id deve ser um inteiro válido e positivo"},
-#             status=status.HTTP_400_BAD_REQUEST
-#         )
-    
-#     # Verificar existência do filme na base de dados
-#     try:
-#         filme = Filme.objects.get(id=movie_id)
-#     except Filme.DoesNotExist:
-#         return Response(
-#             {"error": "Filme não encontrado na base de dados"},
-#             status=status.HTTP_404_NOT_FOUND
-#         )
-    
-#     # Verificar se o filme está realmente na lista de favoritos do utilizador
-#     try:
-#         atividade = AtividadeUsuario.objects.get(
-#             usuario=user,
-#             filme=filme,
-#             favorito=True
-#         )
-#     except AtividadeUsuario.DoesNotExist:
-#         return Response(
-#             {"error": "Este filme não está na sua lista de favoritos"},
-#             status=status.HTTP_400_BAD_REQUEST
-#         )
-    
-#     # Remover o filme dos favoritos (apenas atualizar flag, manter histórico)
-#     atividade.favorito = False
-#     atividade.save()
-    
-#     return Response({
-#         "message": "Filme removido dos favoritos com sucesso",
-#         "movie_id": filme.id,
-#         "titulo": filme.nome
-#     }, status=status.HTTP_200_OK)
-
-
-# @api_view(['GET'])
-# @permission_classes([IsAuthenticated])
-# def list_favorites(request):
-#     """
-#     Endpoint para obter a lista completa de filmes favoritos (watchlist) do utilizador autenticado.
-    
-#     Requisitos cumpridos:
-#     - RF-08: Favoritos / Watchlist
-#     - RF-02: Autenticação (apenas utilizadores autenticados)
-    
-#     GET /api/movies/favorites/
-    
-#     Autenticação: Obrigatória (Bearer Token JWT)
-    
-#     Query Parameters (Opcionais):
-#     - page: Número da página (padrão: 1)
-#     - page_size: Itens por página (padrão: 50, máximo: 100)
-    
-#     Response (HTTP 200 - Com favoritos):
-#     {
-#         "total": 5,
-#         "page": 1,
-#         "page_size": 50,
-#         "results": [
-#             {
-#                 "tmdb_id": 550,
-#                 "titulo": "Fight Club",
-#                 "descricao": "An insomniac office worker...",
-#                 "poster_url": "https://image.tmdb.org/t/p/w500/...",
-#                 "generos": ["Drama", "Thriller"],
-#                 "tmdb_rating": 8.8,
-#                 "user_rating": 9,
-#                 "favorito": true,
-#                 "visto": false,
-#                 "ver_mais_tarde": false
-#             },
-#             ...
-#         ]
-#     }
-    
-#     Response (HTTP 200 - Sem favoritos):
-#     {
-#         "total": 0,
-#         "page": 1,
-#         "page_size": 50,
-#         "results": []
-#     }
-    
-#     Response (HTTP 401 - Não autenticado):
-#     {"detail": "As credenciais de autenticação não foram fornecidas."}
-    
-#     Comportamento:
-#     - Filtra apenas filmes com favorito=True do utilizador autenticado
-#     - Ordenação decrescente por ID (mais recente primeiro)
-#     - Ignora itens com filmes inexistentes (integridade)
-#     - Paginação suportada (opcional)
-#     - Queries otimizadas (select_related, prefetch_related)
-#     - Segurança: Apenas acesso ao próprio histórico de favoritos
-#     - Sem falhas por dados inconsistentes
-#     """
-    
-#     user = request.user
-    
-#     try:
-#         # Buscar todas as atividades do utilizador com filmes marcados como favorito
-#         # select_related otimiza a relação com Filme (join)
-#         # prefetch_related otimiza a relação ManyToMany com Generos
-#         atividades_query = (
-#             AtividadeUsuario.objects
-#             .filter(usuario=user, favorito=True)
-#             .select_related('filme')
-#             .prefetch_related('filme__generos')
-#             .order_by('-id')  # Ordenação decrescente por ID (mais recente primeiro)
-#         )
-        
-#         # Suporte a paginação manual
-#         page = int(request.GET.get('page', 1))
-#         page_size = int(request.GET.get('page_size', 50))
-        
-#         # Validar parâmetros de paginação
-#         if page < 1:
-#             page = 1
-#         if page_size < 1:
-#             page_size = 50
-#         if page_size > 100:
-#             page_size = 100
-        
-#         # Calcular offsets
-#         start = (page - 1) * page_size
-#         end = start + page_size
-        
-#         # Contar total antes da paginação
-#         total_count = atividades_query.count()
-        
-#         # Aplicar paginação
-#         atividades_paginadas = atividades_query[start:end]
-        
-#         # Construir lista de resposta com tratamento robusto de erros
-#         favorites_list = []
-        
-#         for atividade in atividades_paginadas:
-#             try:
-#                 # Validar existência do filme (relação integridade)
-#                 if not atividade.filme:
-#                     continue  # Ignorar se filme não existe
-                
-#                 # Serializar com função existente do projeto
-#                 filme_data = serialize_movie(atividade.filme, atividade)
-                
-#                 favorites_list.append(filme_data)
-                
-#             except Exception as e:
-#                 # Ignorar itens inválidos e continuar processamento
-#                 # Evita falhas por dados corrompidos ou faltantes
-#                 continue
-        
-#         # Retornar resposta estruturada com suporte a paginação
-#         return Response({
-#             "total": total_count,
-#             "page": page,
-#             "page_size": page_size,
-#             "results": favorites_list
-#         }, status=status.HTTP_200_OK)
-    
-#     except ValueError:
-#         # Erro na conversão de parâmetros de paginação
-#         return Response(
-#             {"error": "Parâmetros de paginação inválidos. page e page_size devem ser inteiros."},
-#             status=status.HTTP_400_BAD_REQUEST
-#         )
-    
-#     except Exception as e:
-#         # Erro crítico no processamento
-#         return Response(
-#             {"error": "Erro ao obter lista de favoritos", "detail": str(e)},
-#             status=status.HTTP_500_INTERNAL_SERVER_ERROR
-#         )
-
-
-# ################ AI
-
-
-# ============================================================================
-# HISTÓRICO DE VISUALIZAÇÃO - RF-09
-# ============================================================================
-
-class MarkWatchedView(APIView):
-    """
-    Endpoint para marcar um filme como visualizado (ou remover do histórico).
-    
-    Requisito RF-09: Histórico de Interação
-    Requisito RNF-04: Segurança e Autenticação
-    Requisito RNF-09: Mensagens de erro e sucesso claras
-    
-    POST /api/movies/mark_watched/
-    Body: 
-        - movie_id (int, obrigatório): ID do filme a marcar
-        - watched (bool, opcional): True para marcar como visto, False para desmarcar (default: True)
-    
-    Retorna:
-        - HTTP 200: Sucesso com mensagem
-        - HTTP 400: Erro de validação (filme não existe, movie_id faltando)
-        - HTTP 401: Não autenticado
-    """
-    permission_classes = [IsAuthenticated]
-    
-    def post(self, request):
-        """
-        Cria ou atualiza o registo de visualização para o utilizador autenticado.
-        Usa update_or_create para operação atómica (RF-06).
-        """
-        # Validação: movie_id é obrigatório
-        movie_id = request.data.get('movie_id')
-        if not movie_id:
-            return Response(
-                {
-                    "status": "error",
-                    "message": "O campo 'movie_id' é obrigatório."
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Obter estado de 'watched' (default: True se não fornecido)
-        watched = request.data.get('watched', True)
-        
-        # Validar se o filme existe
-        try:
-            filme = Filme.objects.get(id=movie_id)
-        except Filme.DoesNotExist:
-            return Response(
-                {
-                    "status": "error",
-                    "message": f"Filme com ID {movie_id} não encontrado."
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Operação atómica: criar ou atualizar registo
-        # RF-06: Garantir atomicidade da operação
-        watched_item, created = HistoricoVisualizacao.objects.update_or_create(
-            usuario=request.user,
-            filme=filme,
-            defaults={'completo': watched}
-        )
-        
-        # Mensagem de sucesso clara (RNF-09)
-        return Response(
-            {
-                "status": "success",
-                "message": f"Histórico de visualização do filme {movie_id} atualizado com sucesso."
-            },
-            status=status.HTTP_200_OK
-        )
-
 
 # ============================================================================
 # FAVORITOS - RF-08 (Lista Pessoal de Favoritos)
@@ -2499,4 +1504,470 @@ class MovieCatalogueView(APIView):
         }
         
         return Response(response_data, status=status.HTTP_200_OK)
+
+
+# ============================================================================
+# HISTÓRICO DE VISUALIZAÇÕES - RF-09 (Histórico de Interação)
+# ============================================================================
+
+class HistoryWatchedViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet para listar histórico de visualizações do utilizador.
+    
+    Requisito RF-09: Histórico de Interação
+    Requisito RNF-04: Segurança e Autenticação (IsAuthenticated)
+    
+    Endpoints:
+        - GET /api/history/watched/ - Lista todos os filmes vistos pelo utilizador
+    
+    Características:
+        - Apenas leitura (ReadOnlyModelViewSet)
+        - Apenas utilizadores autenticados podem aceder
+        - Filtra automaticamente por utilizador autenticado
+        - Ordenado por data de visualização (descendente)
+    """
+    serializer_class = HistoryItemSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsPagination
+    
+    def get_queryset(self):
+        """
+        Retorna apenas o histórico do utilizador autenticado.
+        Ordenado por data de visualização (descendente).
+        
+        Requisito RF-09: Filtragem por utilizador e ordenação
+        """
+        return HistoricoVisualizacao.objects.filter(
+            usuario=self.request.user
+        ).select_related('filme').prefetch_related('filme__generos').order_by('-data_visualizacao')
+
+
+# ============================================================================
+# WATCH LATER / VER MAIS TARDE - RF-08 (Watchlist)
+# ============================================================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_watch_later(request):
+    """
+    Adiciona um filme à lista Ver Mais Tarde.
+    
+    Requisito RF-08: Watchlist
+    
+    POST /api/movies/watch_later/add/
+    Body: {"movie_id": <id>}
+    """
+    user = request.user
+    
+    if 'movie_id' not in request.data:
+        return Response(
+            {"error": "O parâmetro 'movie_id' é obrigatório"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        movie_id = int(request.data.get('movie_id'))
+    except (ValueError, TypeError):
+        return Response(
+            {"error": "O parâmetro 'movie_id' deve ser um número inteiro"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if movie_id <= 0:
+        return Response(
+            {"error": "O parâmetro 'movie_id' deve ser um número positivo"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        filme = Filme.objects.get(id=movie_id)
+    except Filme.DoesNotExist:
+        return Response(
+            {"error": "Filme não encontrado"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    atividade, created = AtividadeUsuario.objects.update_or_create(
+        usuario=user,
+        filme=filme,
+        defaults={'ver_mais_tarde': True}
+    )
+    
+    return Response({
+        "message": "Filme adicionado à lista Ver Mais Tarde" if created else "Lista Ver Mais Tarde atualizada",
+        "movie_id": filme.id,
+        "movie_title": filme.nome,
+        "created": created
+    }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def remove_watch_later(request):
+    """
+    Remove um filme da lista Ver Mais Tarde.
+    
+    Requisito RF-08: Watchlist
+    
+    POST /api/movies/watch_later/remove/
+    Body: {"movie_id": <id>}
+    """
+    user = request.user
+    
+    if 'movie_id' not in request.data:
+        return Response(
+            {"error": "O parâmetro 'movie_id' é obrigatório"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        movie_id = int(request.data.get('movie_id'))
+    except (ValueError, TypeError):
+        return Response(
+            {"error": "O parâmetro 'movie_id' deve ser um número inteiro"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        filme = Filme.objects.get(id=movie_id)
+    except Filme.DoesNotExist:
+        return Response(
+            {"error": "Filme não encontrado"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    try:
+        atividade = AtividadeUsuario.objects.get(usuario=user, filme=filme)
+        atividade.ver_mais_tarde = False
+        atividade.save(update_fields=['ver_mais_tarde', 'updated_at'])
+        
+        return Response({
+            "message": "Filme removido da lista Ver Mais Tarde",
+            "movie_id": filme.id,
+            "movie_title": filme.nome
+        }, status=status.HTTP_200_OK)
+    
+    except AtividadeUsuario.DoesNotExist:
+        return Response(
+            {"error": "Filme não está na lista Ver Mais Tarde"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_watch_later(request):
+    """
+    Lista todos os filmes na lista Ver Mais Tarde do utilizador.
+    
+    Requisito RF-08: Watchlist
+    
+    GET /api/movies/watch_later/
+    """
+    user = request.user
+    
+    try:
+        atividades = (
+            AtividadeUsuario.objects
+            .filter(usuario=user, ver_mais_tarde=True)
+            .select_related('filme')
+            .prefetch_related('filme__generos')
+            .order_by('-updated_at')
+        )
+        
+        results = []
+        for atividade in atividades:
+            try:
+                filme = atividade.filme
+                results.append({
+                    "id": filme.id,
+                    "title": filme.nome,
+                    "overview": filme.descricao,
+                    "genres": [g.nome for g in filme.generos.all()],
+                    "poster_path": filme.poster_path,
+                    "poster_url": f"https://image.tmdb.org/t/p/w500{filme.poster_path}" if filme.poster_path else None,
+                    "tmdb_rating": filme.rating_tmdb,
+                    "added_at": atividade.updated_at.isoformat() if atividade.updated_at else None
+                })
+            except Exception:
+                continue
+        
+        return Response({
+            "total": len(results),
+            "results": results
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return Response(
+            {"error": "Erro ao obter lista Ver Mais Tarde"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# ============================================================================
+# REVIEWS / COMENTÁRIOS - RF-04 (Avaliações e Reviews)
+# ============================================================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_review(request):
+    """
+    Adiciona ou atualiza um review de um filme.
+    
+    Requisito RF-04: Avaliações e Reviews
+    
+    POST /api/movies/reviews/add/
+    Body: {"movie_id": <id>, "review": "<texto>"}
+    """
+    user = request.user
+    
+    if 'movie_id' not in request.data:
+        return Response(
+            {"error": "O parâmetro 'movie_id' é obrigatório"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if 'review' not in request.data:
+        return Response(
+            {"error": "O parâmetro 'review' é obrigatório"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        movie_id = int(request.data.get('movie_id'))
+    except (ValueError, TypeError):
+        return Response(
+            {"error": "O parâmetro 'movie_id' deve ser um número inteiro"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    review_text = request.data.get('review', '').strip()
+    
+    if not review_text:
+        return Response(
+            {"error": "Review não pode estar vazia"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if len(review_text) > 2000:
+        return Response(
+            {"error": "Review não pode exceder 2000 caracteres"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        filme = Filme.objects.get(id=movie_id)
+    except Filme.DoesNotExist:
+        return Response(
+            {"error": "Filme não encontrado"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    atividade, created = AtividadeUsuario.objects.update_or_create(
+        usuario=user,
+        filme=filme,
+        defaults={'review': review_text}
+    )
+    
+    return Response({
+        "message": "Review adicionado com sucesso" if created else "Review atualizado com sucesso",
+        "movie_id": filme.id,
+        "movie_title": filme.nome,
+        "review": review_text,
+        "created": created
+    }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def list_reviews(request, movie_id):
+    """
+    Lista todos os reviews de um filme específico.
+    
+    Requisito RF-04: Avaliações e Reviews
+    
+    GET /api/movies/<movie_id>/reviews/
+    """
+    try:
+        filme = Filme.objects.get(id=movie_id)
+    except Filme.DoesNotExist:
+        return Response(
+            {"error": "Filme não encontrado"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    try:
+        atividades = (
+            AtividadeUsuario.objects
+            .filter(filme=filme, review__isnull=False)
+            .exclude(review='')
+            .select_related('usuario')
+            .order_by('-updated_at')
+        )
+        
+        reviews = []
+        for atividade in atividades:
+            reviews.append({
+                "id": atividade.id,
+                "user": {
+                    "id": atividade.usuario.id,
+                    "nome": atividade.usuario.nome
+                },
+                "review": atividade.review,
+                "rating": atividade.rating,
+                "created_at": atividade.created_at.isoformat() if atividade.created_at else None,
+                "updated_at": atividade.updated_at.isoformat() if atividade.updated_at else None
+            })
+        
+        return Response({
+            "movie_id": filme.id,
+            "movie_title": filme.nome,
+            "total": len(reviews),
+            "reviews": reviews
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return Response(
+            {"error": "Erro ao obter reviews"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_review(request, movie_id):
+    """
+    Remove o review do utilizador de um filme.
+    
+    Requisito RF-04: Avaliações e Reviews
+    
+    DELETE /api/movies/<movie_id>/reviews/delete/
+    """
+    user = request.user
+    
+    try:
+        filme = Filme.objects.get(id=movie_id)
+    except Filme.DoesNotExist:
+        return Response(
+            {"error": "Filme não encontrado"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    try:
+        atividade = AtividadeUsuario.objects.get(usuario=user, filme=filme)
+        
+        if not atividade.review:
+            return Response(
+                {"error": "Não existe review para este filme"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        old_review = atividade.review
+        atividade.review = None
+        atividade.save(update_fields=['review', 'updated_at'])
+        
+        return Response({
+            "message": "Review removido com sucesso",
+            "movie_id": filme.id,
+            "movie_title": filme.nome,
+            "removed_review": old_review
+        }, status=status.HTTP_200_OK)
+    
+    except AtividadeUsuario.DoesNotExist:
+        return Response(
+            {"error": "Não existe review para este filme"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+# ============================================================================
+# SISTEMA DE RECOMENDAÇÕES - RF-10 (Motor de Recomendação)
+# ============================================================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_movie_recommendations(request):
+    """
+    Retorna recomendações personalizadas de filmes baseadas no histórico do utilizador.
+    
+    Requisito RF-10: Motor de Recomendação
+    Requisito RF-11: Tendências/Populares (fallback)
+    
+    GET /api/movies/recommendations/
+    
+    Lógica:
+    - >= 3 avaliações positivas (>7.5): recomendações por género
+    - < 3 avaliações positivas: filmes populares (fallback)
+    """
+    user = request.user
+    
+    try:
+        # Buscar avaliações positivas (rating > 7.5)
+        high_ratings = AtividadeUsuario.objects.filter(
+            usuario=user,
+            rating__gt=7.5
+        ).select_related('filme').prefetch_related('filme__generos')
+        
+        num_high_ratings = high_ratings.count()
+        
+        # Obter IDs de filmes já avaliados (para exclusão)
+        filmes_avaliados_ids = AtividadeUsuario.objects.filter(
+            usuario=user,
+            rating__isnull=False
+        ).values_list('filme_id', flat=True)
+        
+        if num_high_ratings >= 3:
+            # Extrair géneros dos filmes bem avaliados
+            generos_ids = set()
+            for atividade in high_ratings:
+                for genero in atividade.filme.generos.all():
+                    generos_ids.add(genero.nome)
+            
+            if generos_ids:
+                # Filmes com géneros similares, excluindo já avaliados
+                filmes_recomendados = (
+                    Filme.objects
+                    .filter(generos__nome__in=generos_ids)
+                    .exclude(id__in=filmes_avaliados_ids)
+                    .prefetch_related('generos')
+                    .distinct()
+                    .order_by('-rating_tmdb')[:20]
+                )
+            else:
+                filmes_recomendados = Filme.objects.none()
+        else:
+            # Fallback: filmes populares
+            filmes_recomendados = (
+                Filme.objects
+                .exclude(id__in=filmes_avaliados_ids)
+                .filter(rating_tmdb__isnull=False)
+                .prefetch_related('generos')
+                .order_by('-rating_tmdb')[:20]
+            )
+        
+        # Serializar resultados
+        results = []
+        for filme in filmes_recomendados:
+            results.append({
+                "id": filme.id,
+                "title": filme.nome,
+                "overview": filme.descricao,
+                "genres": [g.nome for g in filme.generos.all()],
+                "poster_path": filme.poster_path,
+                "poster_url": f"https://image.tmdb.org/t/p/w500{filme.poster_path}" if filme.poster_path else None,
+                "tmdb_rating": filme.rating_tmdb,
+                "user_rating_average": filme.get_rating_medio_usuarios()
+            })
+        
+        return Response({
+            "num_user_ratings": num_high_ratings,
+            "recommendation_type": "personalized" if num_high_ratings >= 3 else "popular",
+            "total": len(results),
+            "recommendations": results
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return Response(
+            {"error": "Erro ao gerar recomendações"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
