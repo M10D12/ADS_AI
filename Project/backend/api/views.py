@@ -5,10 +5,13 @@ from django.db import models
 from django.http import JsonResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, viewsets
+from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
 from math import log
 from django.db.models import Count, Avg
-from .models import AtividadeUsuario, Filme, Genero, Usuario
+from .models import AtividadeUsuario, Filme, Genero, Usuario, HistoricoVisualizacao, Favorito
+from .services import tmdb_service
 import requests
 from django.conf import settings
 from django.contrib.auth.hashers import make_password,check_password
@@ -20,7 +23,7 @@ from rest_framework.pagination import PageNumberPagination
 
 from .serializers import (
     UsuarioSerializer, FilmeSerializer, GeneroSerializer,
-    AtividadeUsuarioSerializer
+    AtividadeUsuarioSerializer, FavoriteSerializer
 )
 
 # Create your views here.
@@ -1117,103 +1120,6 @@ def rate_movie(request):
 #         return Response({"error": str(e)}, status=500)
 
 
-
-
-# #marcar e desmarcar filmes vistos
-
-# @api_view(["POST"])
-# @permission_classes([IsAuthenticated])
-# def mark_watched(request):
-#     user = request.user
-#     tmdb_id = request.data.get("tmdb_id")
-
-#     if not tmdb_id:
-#         return Response({"error": "tmdb_id é obrigatório"}, status=400)
-
-#     filme, _ = Filme.objects.get_or_create(id=tmdb_id)
-
-#     atividade, _ = AtividadeUsuario.objects.update_or_create(
-#         usuario=user,
-#         filme=filme,
-#         defaults={"visto": True}
-#     )
-
-#     return Response({"message": "Filme marcado como visto"})
-
-# #######################################################################################
-
-# @api_view(["POST"])
-# @permission_classes([IsAuthenticated])
-# def unmark_watched(request):
-#     user = request.user
-#     tmdb_id = request.data.get("tmdb_id")
-
-#     if not tmdb_id:
-#         return Response({"error": "tmdb_id é obrigatório"}, status=400)
-
-#     try:
-#         atividade = AtividadeUsuario.objects.get(usuario=user, filme_id=tmdb_id)
-#         atividade.visto = False
-#         atividade.save()
-#     except AtividadeUsuario.DoesNotExist:
-#         return Response({"error": "Filme não estava marcado como visto"}, status=404)
-
-#     return Response({"message": "Filme removido dos vistos"})
-
-# @permission_classes([IsAuthenticated])
-# def list_favorites(request):
-#     user = request.user
-
-#     atividades = (
-#         AtividadeUsuario.objects
-#         .filter(usuario=user, favorito=True)
-#         .select_related("filme")
-#     )
-
-#     filmes = [
-#         serialize_movie(a.filme, a)
-#         for a in atividades
-#     ]
-
-#     return Response({"favorites": filmes})
-
-
-
-# @api_view(["GET"])
-# def movies_catalog(request):
-#     page = int(request.GET.get("page", 1))
-#     page_size = int(request.GET.get("page_size", 10))
-
-#     # Calcular offsets
-#     start = (page - 1) * page_size
-#     end = start + page_size
-
-#     # Buscar total
-#     total_filmes = Filme.objects.count()
-
-#     # Buscar filmes paginados
-#     filmes = Filme.objects.all().order_by("id")[start:end]
-
-#     filmes_formatados = [
-#         {
-#             "tmdb_id": f.id,
-#             "titulo": f.nome,
-#             "descricao": f.descricao,
-#             "poster_url": tmdb_image_url(f.poster_path),
-#             "rating_tmdb": f.rating,   # rating guardado do TMDB
-#             "generos": [g.nome for g in f.generos.all()],
-#         }
-#         for f in filmes
-#     ]
-
-#     return Response({
-#         "page": page,
-#         "page_size": page_size,
-#         "total_results": total_filmes,
-#         "filmes": filmes_formatados
-#     })
-
-
 # @api_view(["GET"])
 # @permission_classes([IsAuthenticated])
 # def history(request):
@@ -2136,3 +2042,394 @@ def rate_movie(request):
 
 
 # ################ AI
+
+
+# ============================================================================
+# HISTÓRICO DE VISUALIZAÇÃO - RF-09
+# ============================================================================
+
+class MarkWatchedView(APIView):
+    """
+    Endpoint para marcar um filme como visualizado (ou remover do histórico).
+    
+    Requisito RF-09: Histórico de Interação
+    Requisito RNF-04: Segurança e Autenticação
+    Requisito RNF-09: Mensagens de erro e sucesso claras
+    
+    POST /api/movies/mark_watched/
+    Body: 
+        - movie_id (int, obrigatório): ID do filme a marcar
+        - watched (bool, opcional): True para marcar como visto, False para desmarcar (default: True)
+    
+    Retorna:
+        - HTTP 200: Sucesso com mensagem
+        - HTTP 400: Erro de validação (filme não existe, movie_id faltando)
+        - HTTP 401: Não autenticado
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        """
+        Cria ou atualiza o registo de visualização para o utilizador autenticado.
+        Usa update_or_create para operação atómica (RF-06).
+        """
+        # Validação: movie_id é obrigatório
+        movie_id = request.data.get('movie_id')
+        if not movie_id:
+            return Response(
+                {
+                    "status": "error",
+                    "message": "O campo 'movie_id' é obrigatório."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Obter estado de 'watched' (default: True se não fornecido)
+        watched = request.data.get('watched', True)
+        
+        # Validar se o filme existe
+        try:
+            filme = Filme.objects.get(id=movie_id)
+        except Filme.DoesNotExist:
+            return Response(
+                {
+                    "status": "error",
+                    "message": f"Filme com ID {movie_id} não encontrado."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Operação atómica: criar ou atualizar registo
+        # RF-06: Garantir atomicidade da operação
+        watched_item, created = HistoricoVisualizacao.objects.update_or_create(
+            usuario=request.user,
+            filme=filme,
+            defaults={'completo': watched}
+        )
+        
+        # Mensagem de sucesso clara (RNF-09)
+        return Response(
+            {
+                "status": "success",
+                "message": f"Histórico de visualização do filme {movie_id} atualizado com sucesso."
+            },
+            status=status.HTTP_200_OK
+        )
+
+
+# ============================================================================
+# FAVORITOS - RF-08 (Lista Pessoal de Favoritos)
+# ============================================================================
+
+class FavoriteViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestão de favoritos do utilizador.
+    
+    Requisito RF-08: Favoritos / Watchlist
+    Requisito RNF-04: Segurança e Autenticação (IsAuthenticated)
+    
+    Endpoints:
+        - GET /api/favorites/       - Lista todos os favoritos do utilizador autenticado
+        - POST /api/favorites/      - Adiciona um filme aos favoritos (body: {"movie_id": <id>})
+        - DELETE /api/favorites/<id>/ - Remove um favorito específico
+    
+    Características:
+        - Apenas utilizadores autenticados podem aceder (IsAuthenticated)
+        - Filtra automaticamente por utilizador autenticado (get_queryset)
+        - Ordenado por data de adição (descendente - mais recentes primeiro)
+        - Define automaticamente o utilizador na criação (perform_create)
+    """
+    serializer_class = FavoriteSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """
+        Retorna apenas os favoritos do utilizador autenticado.
+        Ordenados por data de adição (descendente - RF-09).
+        
+        Requisito RF-08: Filtragem por utilizador
+        Requisito RF-09: Ordenação por data de adição
+        """
+        return Favorito.objects.filter(
+            usuario=self.request.user
+        ).select_related('filme').order_by('-data_adicao')
+    
+    def perform_create(self, serializer):
+        """
+        Define o utilizador autenticado ao criar um favorito.
+        Garante que o campo 'user' é definido corretamente (RF-08).
+        
+        Requisito RF-08: Associação automática ao utilizador autenticado
+        """
+        movie_id = serializer.validated_data.pop('movie_id')
+        filme = Filme.objects.get(id=movie_id)
+        serializer.save(usuario=self.request.user, filme=filme)
+
+
+# ============================================================================
+# CATÁLOGO DE FILMES - RF-04 (Explorar Catálogo) e RF-05 (Pesquisa/Filtro)
+# ============================================================================
+
+class StandardResultsPagination(PageNumberPagination):
+    """
+    Paginação padrão para resultados de catálogo.
+    
+    Requisito RF-04: Explorar Catálogo
+    Requisito RNF-01: Performance (limitar resultados por página)
+    """
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+    page_query_param = 'page'
+
+
+class MovieCatalogueView(APIView):
+    """
+    Endpoint para explorar o catálogo de filmes com pesquisa e filtros.
+    
+    Requisito RF-04: Explorar Catálogo
+    Requisito RF-05: Pesquisa e Filtro
+    Requisito RF-12: Integração com API Externa (TMDB)
+    Requisito RNF-01: Performance e Tempo de Resposta
+    Requisito US04: Pesquisa por Título
+    Requisito US05: Filtragem por Género
+    
+    GET /api/movies/catalogue/
+    
+    Query Parameters:
+        - page (int, opcional): Número da página (default: 1)
+        - title (str, opcional): Termo de pesquisa para título (US04)
+        - genre_id (int, opcional): ID do género para filtro (US05)
+    
+    Autenticação: Não requerida (AllowAny) - RF-04
+    
+    Response (HTTP 200 - Sucesso):
+    {
+        "count": 15000,
+        "next": "http://localhost:8000/api/movies/catalogue/?page=2",
+        "previous": null,
+        "results": [
+            {
+                "movie_id": 438,
+                "title": "Dune",
+                "overview": "Paul Atreides, a brilliant...",
+                "poster_path": "/d5NXSklXo0qyIYkgV94XAgMIckC.jpg",
+                "poster_url": "https://image.tmdb.org/t/p/w500/d5NXSklXo0qyIYkgV94XAgMIckC.jpg",
+                "backdrop_path": "/wfrfLo3pXp0FsMPv1vjdMqjqMvh.jpg",
+                "release_date": "2021-09-15",
+                "vote_average": 7.8,
+                "vote_count": 8500,
+                "genre_ids": [878, 12, 28],
+                "original_language": "en",
+                "popularity": 500.5
+            },
+            ...
+        ]
+    }
+    
+    Response (HTTP 400 - Parâmetros inválidos):
+    {
+        "error": "Parâmetro 'page' deve ser um número inteiro positivo"
+    }
+    
+    Response (HTTP 503 - Erro TMDB):
+    {
+        "error": "Erro ao conectar à API da TMDB",
+        "detail": "Timeout excedido"
+    }
+    
+    Características:
+        - Acesso público (sem autenticação)
+        - Suporta paginação manual via TMDB
+        - Pesquisa por título (US04)
+        - Filtro por género (US05)
+        - Timeout de 10 segundos (RNF-01)
+        - Formato de resposta paginado (DRF-style)
+    """
+    
+    permission_classes = [AllowAny]
+    pagination_class = StandardResultsPagination
+    
+    def get(self, request):
+        """
+        Método GET para obter catálogo de filmes com suporte a pesquisa e filtros.
+        
+        Requisito RF-04: Explorar Catálogo
+        Requisito RF-05: Pesquisa e Filtro
+        """
+        # ====================================================================
+        # Extrair e validar parâmetros de query
+        # ====================================================================
+        
+        # Página (default: 1)
+        try:
+            page = int(request.query_params.get('page', 1))
+            if page < 1:
+                page = 1
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "Parâmetro 'page' deve ser um número inteiro positivo"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Título para pesquisa (US04)
+        title = request.query_params.get('title', '').strip()
+        if title and len(title) > 512:
+            return Response(
+                {"error": "Parâmetro 'title' não pode exceder 512 caracteres"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Genre ID para filtro (US05)
+        genre_id = request.query_params.get('genre_id', None)
+        if genre_id:
+            try:
+                genre_id = int(genre_id)
+                if genre_id < 1:
+                    raise ValueError("Genre ID deve ser positivo")
+            except (ValueError, TypeError):
+                return Response(
+                    {"error": "Parâmetro 'genre_id' deve ser um número inteiro positivo"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # ====================================================================
+        # Chamar serviço TMDB (RF-12)
+        # ====================================================================
+        
+        try:
+            # Buscar filmes via serviço (RNF-01: timeout de 10s)
+            tmdb_data = tmdb_service.fetch_movies(
+                page=page,
+                title=title if title else None,
+                genre_id=genre_id
+            )
+            
+            # Extrair dados da resposta
+            total_results = tmdb_data.get('total_results', 0)
+            total_pages = tmdb_data.get('total_pages', 0)
+            current_page = tmdb_data.get('page', page)
+            results = tmdb_data.get('results', [])
+            
+        except requests.exceptions.Timeout:
+            return Response(
+                {
+                    "error": "Erro ao conectar à API da TMDB",
+                    "detail": "Timeout excedido (mais de 10 segundos)"
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        
+        except requests.exceptions.ConnectionError:
+            return Response(
+                {
+                    "error": "Erro ao conectar à API da TMDB",
+                    "detail": "Erro de conexão"
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        
+        except requests.exceptions.HTTPError as e:
+            status_code = e.response.status_code if hasattr(e, 'response') else 500
+            
+            if status_code == 401:
+                detail = "API key da TMDB inválida ou expirada"
+            elif status_code == 404:
+                detail = "Recurso não encontrado na TMDB"
+            elif status_code == 429:
+                detail = "Rate limit da TMDB excedido"
+            else:
+                detail = f"Erro HTTP {status_code} da TMDB"
+            
+            return Response(
+                {
+                    "error": "Erro ao obter dados da TMDB",
+                    "detail": detail
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        
+        except ValueError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        except Exception as e:
+            return Response(
+                {
+                    "error": "Erro ao processar catálogo de filmes",
+                    "detail": "Erro interno do servidor"
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # ====================================================================
+        # Formatar resultados (RF-04)
+        # ====================================================================
+        
+        formatted_results = []
+        
+        for movie in results:
+            # Construir URL do poster
+            poster_path = movie.get('poster_path')
+            poster_url = None
+            if poster_path:
+                poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}"
+            
+            # Construir objeto de filme formatado
+            formatted_movie = {
+                'movie_id': movie.get('id'),
+                'title': movie.get('title', ''),
+                'overview': movie.get('overview', ''),
+                'poster_path': poster_path,
+                'poster_url': poster_url,
+                'backdrop_path': movie.get('backdrop_path'),
+                'release_date': movie.get('release_date'),
+                'vote_average': movie.get('vote_average'),
+                'vote_count': movie.get('vote_count'),
+                'genre_ids': movie.get('genre_ids', []),
+                'original_language': movie.get('original_language'),
+                'popularity': movie.get('popularity'),
+            }
+            
+            formatted_results.append(formatted_movie)
+        
+        # ====================================================================
+        # Construir resposta paginada (formato DRF)
+        # ====================================================================
+        
+        # Construir URLs de navegação
+        base_url = request.build_absolute_uri(request.path)
+        
+        # Query parameters para manter nos links
+        query_params = {}
+        if title:
+            query_params['title'] = title
+        if genre_id:
+            query_params['genre_id'] = genre_id
+        
+        # URL da próxima página
+        next_url = None
+        if current_page < total_pages:
+            next_params = query_params.copy()
+            next_params['page'] = current_page + 1
+            next_url = f"{base_url}?{'&'.join(f'{k}={v}' for k, v in next_params.items())}"
+        
+        # URL da página anterior
+        previous_url = None
+        if current_page > 1:
+            prev_params = query_params.copy()
+            prev_params['page'] = current_page - 1
+            previous_url = f"{base_url}?{'&'.join(f'{k}={v}' for k, v in prev_params.items())}"
+        
+        # Resposta paginada (formato DRF)
+        response_data = {
+            'count': total_results,
+            'next': next_url,
+            'previous': previous_url,
+            'results': formatted_results
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+

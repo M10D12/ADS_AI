@@ -20,8 +20,13 @@ from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework import routers
 from api.views import *
 from rest_framework_simplejwt.views import TokenRefreshView, TokenObtainPairView
+
+# Router para ViewSets
+router = routers.DefaultRouter()
+router.register(r'favorites', FavoriteViewSet, basename='favorite')
 
 @api_view(['GET'])
 def api_status(request):
@@ -31,8 +36,14 @@ def api_status(request):
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/status/', api_status, name='api-status'),
+    
+    # ViewSets (Router)
+    path('api/', include(router.urls)),
 
     # API endpoints
+    
+    # Catálogo (RF-04, RF-05)
+    path('api/movies/catalogue/', MovieCatalogueView.as_view(), name='movie_catalogue'),
     
     path('api/movies/search/', search_movies, name='search_movies'),
     path('api/movies/search/tmdb/', search_movies_tmdb, name='search_movies_tmdb'),
@@ -50,7 +61,7 @@ urlpatterns = [
     # path("api/movies/filter_by_rating/", filter_by_rating),
 
     # path("api/movies/watched/", watched_movies),
-    # path("api/movies/mark_watched/", mark_watched),
+    path("api/movies/mark_watched/", MarkWatchedView.as_view(), name="mark_watched"),
     # path("api/movies/unmark_watched/", unmark_watched),
 
     # path("api/movies/favorites/", list_favorites),

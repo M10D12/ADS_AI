@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
-from .models import Usuario, Filme, Genero, AtividadeUsuario
+from .models import Usuario, Filme, Genero, AtividadeUsuario, Favorito
 
 
 # ============================================================================
@@ -409,6 +409,39 @@ class FavoritoSerializer(serializers.ModelSerializer):
             'data_adicao_favoritos',
             'created_at',
         ]
+
+
+class FavoriteSerializer(serializers.ModelSerializer):
+    """
+    Serializer para o modelo Favorito explícito.
+    
+    Requisito R08: Favoritos / Watchlist
+    - Lista favoritos do utilizador
+    - Inclui informações do filme e data de adição
+    """
+    filme = FilmeResumidoSerializer(read_only=True)
+    movie_id = serializers.IntegerField(write_only=True)
+    added_at = serializers.DateTimeField(source='data_adicao', read_only=True)
+    
+    class Meta:
+        model = Favorito
+        fields = [
+            'id',
+            'movie_id',
+            'filme',
+            'added_at',
+        ]
+        read_only_fields = ['id', 'added_at', 'filme']
+    
+    def validate_movie_id(self, value):
+        """
+        Valida que o filme existe.
+        """
+        if not Filme.objects.filter(id=value).exists():
+            raise serializers.ValidationError(
+                "Filme com este ID não foi encontrado."
+            )
+        return value
 
 
 class AdicionarFavoritoSerializer(serializers.Serializer):
