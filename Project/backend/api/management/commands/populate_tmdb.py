@@ -59,6 +59,15 @@ class Command(BaseCommand):
                 except:
                     continue  # poster inválido ou timeout
 
+                # Extrair ano de lançamento
+                release_date = movie.get("release_date", "")
+                ano_lancamento = None
+                if release_date:
+                    try:
+                        ano_lancamento = int(release_date.split("-")[0])
+                    except (ValueError, IndexError):
+                        ano_lancamento = None
+
                 # Criar filme
                 filme, created = Filme.objects.get_or_create(
                     id=tmdb_id,
@@ -66,7 +75,8 @@ class Command(BaseCommand):
                         "nome": movie.get("title"),
                         "descricao": movie.get("overview", "") or "",
                         "poster_path": poster_path,
-                        "rating": rating_tmdb,
+                        "rating_tmdb": rating_tmdb,
+                        "ano_lancamento": ano_lancamento,
                         "capa": capa_bin,
                     }
                 )

@@ -1,0 +1,91 @@
+# Generated migration - Add fields to Filme and AtividadeUsuario
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('api', '0005_usuario_timestamps'),
+    ]
+
+    operations = [
+        # Add fields to Filme
+        migrations.AddField(
+            model_name='filme',
+            name='ano_lancamento',
+            field=models.IntegerField(
+                blank=True,
+                null=True,
+                help_text='Ano de lançamento do filme'
+            ),
+        ),
+        migrations.AddField(
+            model_name='filme',
+            name='rating_tmdb',
+            field=models.FloatField(
+                blank=True,
+                null=True,
+                help_text='Rating do filme na TMDB (0-10)'
+            ),
+        ),
+        migrations.AddField(
+            model_name='filme',
+            name='created_at',
+            field=models.DateTimeField(
+                auto_now_add=True,
+                null=True,
+                help_text='Data e hora de adição ao catálogo'
+            ),
+        ),
+        migrations.AddField(
+            model_name='filme',
+            name='updated_at',
+            field=models.DateTimeField(
+                auto_now=True,
+                help_text='Data e hora da última atualização'
+            ),
+        ),
+        # Rename rating to rating_tmdb for Filme
+        migrations.RenameField(
+            model_name='filme',
+            old_name='rating',
+            new_name='rating_tmdb',
+        ),
+        # Add fields to AtividadeUsuario
+        migrations.AddField(
+            model_name='atividadeusuario',
+            name='data_visualizacao',
+            field=models.DateTimeField(
+                blank=True,
+                null=True,
+                help_text='Data e hora em que o filme foi marcado como visto'
+            ),
+        ),
+        migrations.AddField(
+            model_name='atividadeusuario',
+            name='data_adicao_favoritos',
+            field=models.DateTimeField(
+                blank=True,
+                null=True,
+                help_text='Data e hora em que foi adicionado aos favoritos'
+            ),
+        ),
+        migrations.AddField(
+            model_name='atividadeusuario',
+            name='created_at',
+            field=models.DateTimeField(
+                auto_now_add=True,
+                null=True,
+                help_text='Data e hora de criação do registo de atividade'
+            ),
+        ),
+        migrations.AddField(
+            model_name='atividadeusuario',
+            name='updated_at',
+            field=models.DateTimeField(
+                auto_now=True,
+                help_text='Data e hora da última atualização'
+            ),
+        ),
+    ]
