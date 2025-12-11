@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import Register from './components/RegisterSimple/Register';
 import Login from './components/LoginSimple/Login';
 import Navbar from './components/Navbar';
@@ -8,6 +9,7 @@ import MovieDetailsPage from './pages/MovieDetailsPage';
 import FavoritesPage from './pages/FavoritesPage';
 import MyRatingsPage from './pages/MyRatingsPage';
 import RecommendedPage from './pages/RecommendedPage';
+import EditProfilePage from './pages/EditProfilePage';
 import './App.css';
 
 function Layout({ children }) {
@@ -28,8 +30,9 @@ function Layout({ children }) {
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
         <Route
           path="/"
           element={
@@ -72,9 +75,18 @@ function App() {
             </Layout>
           }
         />
+        <Route
+          path="/edit-profile"
+          element={
+            <Layout>
+              <EditProfilePage />
+            </Layout>
+          }
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 
