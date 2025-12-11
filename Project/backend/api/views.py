@@ -18,6 +18,7 @@ from django.contrib.auth.hashers import make_password,check_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
+from django.utils import timezone
 
 
 
@@ -244,13 +245,11 @@ def user_me(request):
     
     try:
         return Response({
-            "user": {
-                "id": user.id,
-                "nome": user.nome,
-                "email": user.email,
-                "created_at": user.created_at.isoformat() if hasattr(user, 'created_at') and user.created_at else None,
-                "updated_at": user.updated_at.isoformat() if hasattr(user, 'updated_at') and user.updated_at else None,
-            }
+            "id": user.id,
+            "nome": user.nome,
+            "email": user.email,
+            "created_at": user.created_at.isoformat() if hasattr(user, 'created_at') and user.created_at else None,
+            "updated_at": user.updated_at.isoformat() if hasattr(user, 'updated_at') and user.updated_at else None,
         }, status=status.HTTP_200_OK)
     
     except Exception as e:
@@ -1971,3 +1970,250 @@ def get_movie_recommendations(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+
+# ============================================================================
+# FAVORITOS - Endpoints customizados para frontend
+# Usa AtividadeUsuario.favorito em vez de modelo Favorito
+# ============================================================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_user_favorites(request):
+    """
+    Listar todos os favoritos do utilizador autenticado.
+    
+    GET /api/movies/favorites/
+    
+    Response (HTTP 200):
+    {
+        "total": 5,
+        "results": [
+            {
+                "id": 438,
+                "movie_id": 438,
+                "title": "Dune",
+                "overview": "...",
+                "poster_path": "/...",
+                "poster_url": "https://image.tmdb.org/t/p/w500/...",
+                "tmdb_rating": 7.8,
+                "genres": ["Science Fiction", "Adventure"],
+                "added_at": "2024-12-11T10:30:00Z"
+            }
+        ]
+    }
+    """
+    try:
+        user = request.user
+        
+        # Obter todas as atividades do utilizador que têm favorito=True
+        atividades = (
+            AtividadeUsuario.objects
+            .filter(usuario=user, favorito=True)
+            .select_related('filme')
+            .prefetch_related('filme__generos')
+            .order_by('-data_adicao_favoritos')
+        )
+        
+        results = []
+        for atividade in atividades:
+            try:
+                filme = atividade.filme
+                results.append({
+                    "id": filme.id,
+                    "movie_id": filme.id,
+                    "title": filme.nome,
+                    "overview": filme.descricao,
+                    "poster_path": filme.poster_path,
+                    "poster_url": f"https://image.tmdb.org/t/p/w500{filme.poster_path}" if filme.poster_path else None,
+                    "backdrop_path": filme.poster_path,  # Fallback
+                    "tmdb_rating": filme.rating_tmdb,
+                    "genres": [g.nome for g in filme.generos.all()],
+                    "genre_ids": list(filme.generos.all().values_list('nome', flat=True)),
+                    "release_date": filme.ano_lancamento,
+                    "vote_average": filme.rating_tmdb,
+                    "added_at": atividade.data_adicao_favoritos.isoformat() if atividade.data_adicao_favoritos else atividade.updated_at.isoformat()
+                })
+            except Exception as e:
+                print(f"Erro ao processar filme {atividade.filme_id}: {e}")
+                continue
+        
+        return Response({
+            "total": len(results),
+            "results": results
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return Response(
+            {"error": "Erro ao listar favoritos", "detail": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_to_favorites(request):
+    """
+    Adicionar um filme aos favoritos do utilizador.
+    
+    POST /api/movies/favorites/add/
+    
+    Request Body:
+    {
+        "movie_id": 438
+    }
+    
+    Response (HTTP 201):
+    {
+        "message": "Filme adicionado aos favoritos",
+        "movie_id": 438,
+        "added_at": "2024-12-11T10:30:00Z"
+    }
+    """
+    try:
+        user = request.user
+        movie_id = request.data.get('movie_id')
+        
+        # Validação
+        if not movie_id:
+            return Response(
+                {"error": "O parâmetro 'movie_id' é obrigatório"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            movie_id = int(movie_id)
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "O parâmetro 'movie_id' deve ser um número inteiro"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if movie_id <= 0:
+            return Response(
+                {"error": "O parâmetro 'movie_id' deve ser um número positivo"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Obter ou criar o filme
+        try:
+            filme = Filme.objects.get(id=movie_id)
+        except Filme.DoesNotExist:
+            return Response(
+                {"error": "Filme não encontrado"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Obter ou criar a atividade do utilizador
+        atividade, created = AtividadeUsuario.objects.get_or_create(
+            usuario=user,
+            filme=filme,
+            defaults={
+                'favorito': True,
+                'data_adicao_favoritos': timezone.now() if True else None
+            }
+        )
+        
+        # Se já existe, apenas marcar como favorito
+        if not created and not atividade.favorito:
+            atividade.favorito = True
+            atividade.data_adicao_favoritos = timezone.now()
+            atividade.save(update_fields=['favorito', 'data_adicao_favoritos', 'updated_at'])
+        
+        return Response({
+            "message": "Filme adicionado aos favoritos com sucesso",
+            "movie_id": filme.id,
+            "added_at": atividade.data_adicao_favoritos.isoformat() if atividade.data_adicao_favoritos else None
+        }, status=status.HTTP_201_CREATED)
+    
+    except Exception as e:
+        return Response(
+            {"error": "Erro ao adicionar filme aos favoritos", "detail": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def remove_from_favorites(request):
+    """
+    Remover um filme dos favoritos do utilizador.
+    
+    DELETE /api/movies/favorites/remove/?movie_id=<id>
+    
+    Query Parameters:
+        - movie_id (int, obrigatório): ID do filme a remover
+    
+    Response (HTTP 200):
+    {
+        "message": "Filme removido dos favoritos",
+        "movie_id": 438
+    }
+    """
+    try:
+        user = request.user
+        
+        # Obter movie_id do corpo ou query param
+        movie_id = request.data.get('movie_id') if request.data else None
+        if not movie_id:
+            movie_id = request.query_params.get('movie_id')
+        
+        # Validação
+        if not movie_id:
+            return Response(
+                {"error": "O parâmetro 'movie_id' é obrigatório"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            movie_id = int(movie_id)
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "O parâmetro 'movie_id' deve ser um número inteiro"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if movie_id <= 0:
+            return Response(
+                {"error": "O parâmetro 'movie_id' deve ser um número positivo"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Obter o filme
+        try:
+            filme = Filme.objects.get(id=movie_id)
+        except Filme.DoesNotExist:
+            return Response(
+                {"error": "Filme não encontrado"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Obter a atividade do utilizador
+        try:
+            atividade = AtividadeUsuario.objects.get(usuario=user, filme=filme)
+        except AtividadeUsuario.DoesNotExist:
+            return Response(
+                {"error": "Filme não está nos favoritos"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Remover do favoritos
+        if not atividade.favorito:
+            return Response(
+                {"error": "Filme não está nos favoritos"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        atividade.favorito = False
+        atividade.data_adicao_favoritos = None
+        atividade.save(update_fields=['favorito', 'data_adicao_favoritos', 'updated_at'])
+        
+        return Response({
+            "message": "Filme removido dos favoritos com sucesso",
+            "movie_id": filme.id
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return Response(
+            {"error": "Erro ao remover filme dos favoritos", "detail": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

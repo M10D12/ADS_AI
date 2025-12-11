@@ -1,0 +1,718 @@
+/* ========================================================================== */
+/* MY RATINGS PAGE - ESTILOS GLOBAIS */
+/* ========================================================================== */
+
+.my-ratings-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ========================================================================== */
+/* HEADER */
+/* ========================================================================== */
+
+.my-ratings-header {
+  background: linear-gradient(
+    135deg,
+    rgba(102, 126, 234, 0.95) 0%,
+    rgba(118, 75, 162, 0.95) 100%
+  );
+  padding: 30px 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.my-ratings-header-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.back-button {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  padding: 10px 20px;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  white-space: nowrap;
+}
+
+.back-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: white;
+  transform: translateY(-2px);
+}
+
+.my-ratings-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin: 0;
+  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.my-ratings-subtitle {
+  font-size: 1.1rem;
+  opacity: 0.95;
+  margin: 0;
+  font-weight: 300;
+}
+
+/* ========================================================================== */
+/* CONTEÚDO PRINCIPAL */
+/* ========================================================================== */
+
+.my-ratings-content {
+  flex: 1;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.my-ratings-info {
+  margin-bottom: 30px;
+  padding: 15px 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.my-ratings-info p {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+/* ========================================================================== */
+/* RATINGS GRID */
+/* ========================================================================== */
+
+.ratings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 25px;
+  animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================================================== */
+/* RATING CARD */
+/* ========================================================================== */
+
+.rating-card {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.rating-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Poster */
+.rating-card-poster {
+  position: relative;
+  width: 100%;
+  padding-bottom: 150%; /* Aspect ratio 2:3 */
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.rating-card-poster img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.rating-card:hover .rating-card-poster img {
+  transform: scale(1.05);
+}
+
+/* Overlay com botão remover */
+.rating-card-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 10px;
+  backdrop-filter: blur(4px);
+}
+
+.rating-card:hover .rating-card-overlay {
+  opacity: 1;
+}
+
+.remove-rating-button {
+  background: rgba(255, 107, 107, 0.9);
+  color: white;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.3rem;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-rating-button:hover {
+  background: rgba(255, 107, 107, 1);
+  transform: scale(1.1);
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+}
+
+.remove-rating-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Conteúdo do Card */
+.rating-card-content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.rating-card-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.rating-card-genres {
+  font-size: 0.9rem;
+  opacity: 0.85;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* ========================================================================== */
+/* RATINGS COMPARISON */
+/* ========================================================================== */
+
+.ratings-comparison {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+.rating-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rating-item .rating-label {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.rating-item .rating-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.user-rating {
+  color: #ffd700;
+}
+
+.average-rating {
+  color: #87ceeb;
+}
+
+/* ========================================================================== */
+/* RATING CONTROL */
+/* ========================================================================== */
+
+.rating-control {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+}
+
+.rating-control.editing {
+  flex-direction: column;
+  gap: 15px;
+}
+
+.rating-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rating-display .rating-label {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.rating-display .rating-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffd700;
+}
+
+.edit-rating-button {
+  background: rgba(255, 215, 0, 0.2);
+  color: #ffd700;
+  border: 2px solid #ffd700;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.edit-rating-button:hover {
+  background: rgba(255, 215, 0, 0.3);
+  transform: scale(1.05);
+}
+
+.edit-rating-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Stars Container */
+.stars-container {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.star-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: all 0.2s ease;
+  padding: 5px;
+}
+
+.star-button:hover,
+.star-button.filled {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+.star-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+.selected-rating-text {
+  text-align: center;
+  font-size: 0.95rem;
+  opacity: 0.95;
+  margin: 0;
+}
+
+/* Rating Control Buttons */
+.rating-control-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.btn {
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: white;
+  transform: translateY(-2px);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ========================================================================== */
+/* FEEDBACK MESSAGES */
+/* ========================================================================== */
+
+.feedback-container {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999;
+  max-width: 90%;
+  width: 100%;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.feedback-error,
+.feedback-success {
+  padding: 15px 20px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  font-weight: 600;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.feedback-error {
+  background: rgba(255, 107, 107, 0.95);
+  color: white;
+  border: 1px solid rgba(255, 107, 107, 0.5);
+}
+
+.feedback-success {
+  background: rgba(76, 175, 80, 0.95);
+  color: white;
+  border: 1px solid rgba(76, 175, 80, 0.5);
+}
+
+.feedback-close {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 1.3rem;
+  padding: 0;
+  transition: transform 0.2s ease;
+}
+
+.feedback-close:hover {
+  transform: scale(1.2);
+}
+
+/* ========================================================================== */
+/* LOADING STATE */
+/* ========================================================================== */
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 20px;
+}
+
+.loader {
+  width: 60px;
+  height: 60px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top: 4px solid white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-container p {
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+/* ========================================================================== */
+/* EMPTY STATE */
+/* ========================================================================== */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 20px;
+  padding: 40px;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  opacity: 0.8;
+}
+
+.empty-state h2 {
+  font-size: 2rem;
+  margin: 0;
+  font-weight: 700;
+}
+
+.empty-state p {
+  font-size: 1.1rem;
+  opacity: 0.85;
+  max-width: 400px;
+  margin: 0;
+}
+
+/* ========================================================================== */
+/* FOOTER */
+/* ========================================================================== */
+
+.my-ratings-footer {
+  text-align: center;
+  padding: 30px 20px;
+  opacity: 0.8;
+  font-size: 0.95rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: auto;
+}
+
+.my-ratings-footer p {
+  margin: 0;
+}
+
+/* ========================================================================== */
+/* RESPONSIVIDADE */
+/* ========================================================================== */
+
+@media (max-width: 768px) {
+  .my-ratings-title {
+    font-size: 2rem;
+  }
+
+  .my-ratings-subtitle {
+    font-size: 1rem;
+  }
+
+  .my-ratings-header {
+    padding: 20px 15px;
+  }
+
+  .my-ratings-content {
+    padding: 20px 15px;
+  }
+
+  .ratings-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
+  }
+
+  .rating-card-content {
+    padding: 15px;
+    gap: 12px;
+  }
+
+  .rating-card-title {
+    font-size: 1.1rem;
+  }
+
+  .ratings-comparison {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .rating-control {
+    flex-direction: column;
+  }
+
+  .rating-display {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .feedback-container {
+    top: 70px;
+  }
+}
+
+@media (max-width: 480px) {
+  .my-ratings-title {
+    font-size: 1.6rem;
+  }
+
+  .my-ratings-subtitle {
+    font-size: 0.9rem;
+  }
+
+  .my-ratings-content {
+    padding: 15px 10px;
+  }
+
+  .ratings-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .rating-card-content {
+    padding: 12px;
+  }
+
+  .rating-card-title {
+    font-size: 1rem;
+  }
+
+  .star-button {
+    font-size: 1.2rem;
+  }
+
+  .remove-rating-button {
+    width: 35px;
+    height: 35px;
+    font-size: 1.1rem;
+  }
+
+  .back-button {
+    padding: 8px 16px;
+    font-size: 0.9rem;
+  }
+
+  .btn {
+    padding: 8px 16px;
+    font-size: 0.85rem;
+  }
+}
+
+/* ========================================================================== */
+/* DARK MODE */
+/* ========================================================================== */
+
+@media (prefers-color-scheme: dark) {
+  .my-ratings-page {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  }
+
+  .my-ratings-header {
+    background: linear-gradient(
+      135deg,
+      rgba(26, 26, 46, 0.95) 0%,
+      rgba(22, 33, 62, 0.95) 100%
+    );
+  }
+
+  .rating-card {
+    background: rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* ========================================================================== */
+/* ACESSIBILIDADE */
+/* ========================================================================== */
+
+.back-button:focus-visible,
+.edit-rating-button:focus-visible,
+.star-button:focus-visible,
+.remove-rating-button:focus-visible,
+.btn:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rating-card,
+  .star-button,
+  .btn {
+    transition: none;
+  }
+
+  .ratings-grid {
+    animation: none;
+  }
+
+  .loader {
+    animation: none;
+  }
+
+  .feedback-container {
+    animation: none;
+  }
+}

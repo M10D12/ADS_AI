@@ -305,19 +305,27 @@ const MovieDetailsPage = () => {
         return;
       }
 
-      setIsAuthenticated(true);
       setLoadingFavorites(true);
 
-      const data = await fetchAPI('/api/movies/favorites/');
-      const favorites = data.results || [];
-      const isFav = favorites.some(fav => fav.movie_id == id);
-      setIsFavorite(isFav);
+      // Verificar autenticação via API
+      const authCheck = await fetchAPI('/api/auth/me/');
+      if (authCheck && authCheck.id) {
+        setIsAuthenticated(true);
 
-      // Carregar avaliação do utilizador
-      const ratedMovies = await fetchAPI('/api/movies/my_rated/');
-      const userRate = ratedMovies.results?.find(r => r.movie_id == id);
-      if (userRate) {
-        setUserRating(userRate.rating);
+        // Carregar favoritos
+        const data = await fetchAPI('/api/movies/favorites/');
+        const favorites = data.results || [];
+        const isFav = favorites.some(fav => fav.movie_id == id);
+        setIsFavorite(isFav);
+
+        // Carregar avaliação do utilizador
+        const ratedMovies = await fetchAPI('/api/movies/my_rated/');
+        const userRate = ratedMovies.results?.find(r => r.movie_id == id);
+        if (userRate) {
+          setUserRating(userRate.rating);
+        }
+      } else {
+        setIsAuthenticated(false);
       }
     } catch (error) {
       console.error('Erro ao carregar favoritos:', error);

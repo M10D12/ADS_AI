@@ -61,6 +61,11 @@ urlpatterns = [
     path("api/movies/watch_later/remove/", remove_watch_later, name="remove_watch_later"),
     path("api/movies/watch_later/", list_watch_later, name="list_watch_later"),
     
+    # Favorites endpoints (RF-08) - Customizados para frontend
+    path("api/movies/favorites/", list_user_favorites, name="list_user_favorites"),
+    path("api/movies/favorites/add/", add_to_favorites, name="add_to_favorites"),
+    path("api/movies/favorites/remove/", remove_from_favorites, name="remove_from_favorites"),
+    
     # Reviews endpoints (RF-04)
     path("api/movies/reviews/add/", add_review, name="add_review"),
     path("api/movies/<int:movie_id>/reviews/", list_reviews, name="list_reviews"),
