@@ -216,7 +216,7 @@ export default function Navbar() {
 
                   <button
                     className="dropdown-item"
-                    onClick={() => navigate('/profile')}
+                    onClick={() => navigate('/edit-profile')}
                   >
                     ⚙️ Meu Perfil
                   </button>

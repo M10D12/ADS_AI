@@ -1351,8 +1351,43 @@ class MovieCatalogueView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Genre ID para filtro (US05)
+        # Genre ID ou Genre Name para filtro (US05)
         genre_id = request.query_params.get('genre_id', None)
+        genre_name = request.query_params.get('genre_name', None)
+        
+        # Mapeamento de nomes de géneros para IDs da TMDB
+        GENRE_NAME_TO_ID = {
+            'Action': 28,
+            'Adventure': 12,
+            'Animation': 16,
+            'Comedy': 35,
+            'Crime': 80,
+            'Documentary': 99,
+            'Drama': 18,
+            'Family': 10751,
+            'Fantasy': 14,
+            'History': 36,
+            'Horror': 27,
+            'Music': 10402,
+            'Mystery': 9648,
+            'Romance': 10749,
+            'Science Fiction': 878,
+            'TV Movie': 10770,
+            'Thriller': 53,
+            'War': 10752,
+            'Western': 37
+        }
+        
+        # Se foi fornecido nome do género, converter para ID
+        if genre_name and not genre_id:
+            genre_id = GENRE_NAME_TO_ID.get(genre_name)
+            if not genre_id:
+                return Response(
+                    {"error": f"Género '{genre_name}' não reconhecido"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Validar genre_id se fornecido diretamente
         if genre_id:
             try:
                 genre_id = int(genre_id)
