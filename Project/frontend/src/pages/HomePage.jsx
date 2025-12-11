@@ -17,6 +17,8 @@ const MovieCard = ({ movie, onViewDetails }) => {
         <img
           src={posterUrl}
           alt={movie.title}
+          crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
           onError={(e) => {
             e.target.src = 'https://via.placeholder.com/500x750?text=Sem+Imagem';
           }}

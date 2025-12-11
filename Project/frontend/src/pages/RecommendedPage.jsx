@@ -23,6 +23,8 @@ const MovieCard = ({ movie, onViewDetails }) => {
           src={poster || 'https://via.placeholder.com/300x450?text=Sem+Imagem'}
           alt={title}
           className="movie-card-image"
+          crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
           onError={(e) => {
             e.target.src = 'https://via.placeholder.com/300x450?text=Sem+Imagem';
           }}

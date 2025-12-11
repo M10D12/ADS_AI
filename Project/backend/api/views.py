@@ -1908,11 +1908,9 @@ def get_movie_recommendations(request):
         
         num_high_ratings = high_ratings.count()
         
-        # Obter IDs de filmes já avaliados (para exclusão)
-        filmes_avaliados_ids = AtividadeUsuario.objects.filter(
-            usuario=user,
-            rating__isnull=False
-        ).values_list('filme_id', flat=True)
+        # Obter IDs de filmes já altamente avaliados (rating > 7.5 para exclusão)
+        # Nota: filmes com rating <= 7.5 podem aparecer nas recomendações
+        filmes_ja_avaliados_ids = high_ratings.values_list('filme_id', flat=True)
         
         if num_high_ratings >= 3:
             # Extrair géneros dos filmes bem avaliados
@@ -1922,11 +1920,11 @@ def get_movie_recommendations(request):
                     generos_ids.add(genero.nome)
             
             if generos_ids:
-                # Filmes com géneros similares, excluindo já avaliados
+                # Filmes com géneros similares, excluindo já altamente avaliados
                 filmes_recomendados = (
                     Filme.objects
                     .filter(generos__nome__in=generos_ids)
-                    .exclude(id__in=filmes_avaliados_ids)
+                    .exclude(id__in=filmes_ja_avaliados_ids)
                     .prefetch_related('generos')
                     .distinct()
                     .order_by('-rating_tmdb')[:20]
@@ -1937,7 +1935,7 @@ def get_movie_recommendations(request):
             # Fallback: filmes populares
             filmes_recomendados = (
                 Filme.objects
-                .exclude(id__in=filmes_avaliados_ids)
+                .exclude(id__in=filmes_ja_avaliados_ids)
                 .filter(rating_tmdb__isnull=False)
                 .prefetch_related('generos')
                 .order_by('-rating_tmdb')[:20]
