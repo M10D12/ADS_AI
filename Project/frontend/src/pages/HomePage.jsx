@@ -175,9 +175,9 @@ const HomePage = () => {
 
   /**
    * Carregar catálogo de filmes (RF-04)
-   * GET /api/movies/catalogue/?page=X&title=Y&genre_id=Z
+   * GET /api/movies/catalogue/?page=X&title=Y&genre_name=Z
    */
-  const loadCatalog = useCallback(async (page = 1, title = '', genreId = '') => {
+  const loadCatalog = useCallback(async (page = 1, title = '', genreName = '') => {
     setCatalogLoading(true);
     setCatalogError(null);
     try {
@@ -187,8 +187,8 @@ const HomePage = () => {
         url += `&title=${encodeURIComponent(title)}`;
       }
 
-      if (genreId) {
-        url += `&genre_id=${genreId}`;
+      if (genreName) {
+        url += `&genre_name=${encodeURIComponent(genreName)}`;
       }
 
       const data = await fetchAPI(url);
@@ -253,10 +253,10 @@ const HomePage = () => {
    * Filtrar filmes por género (US05)
    */
   const filterByGenre = useCallback(
-    async (genreId) => {
-      setSelectedGenre(genreId);
+    async (genreName) => {
+      setSelectedGenre(genreName);
       setCatalogPage(1);
-      await loadCatalog(1, searchQuery, genreId);
+      await loadCatalog(1, searchQuery, genreName);
     },
     [searchQuery, loadCatalog]
   );
