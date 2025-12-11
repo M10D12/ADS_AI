@@ -1,26 +1,29 @@
-
-FROM node:20-alpine AS build
+# Build stage
+FROM node:18-alpine AS build
 
 WORKDIR /app
 
-# Copia apenas ficheiros de dependências
-COPY package*.json ./
+# Copy package files
+COPY package.json package-lock.json* ./
 
-# Instala dependências
-RUN npm install
-# Copia o resto do projeto
+# Install dependencies
+RUN npm ci --legacy-peer-deps
+
+# Copy source code
 COPY . .
 
-
-RUN chmod -R 755 /app/node_modules/.bin
-
-# Faz o build de produção
+# Build React app with Vite
 RUN npm run build
 
-
+# Production stage - Nginx
 FROM nginx:alpine
 
-COPY --from=build /app/build /usr/share/nginx/html
+# Copy built app (Vite outputs to dist/)
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# Copy nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
+
 CMD ["nginx", "-g", "daemon off;"]
