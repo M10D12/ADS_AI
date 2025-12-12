@@ -27,7 +27,7 @@ class Command(BaseCommand):
         generos_tmdb = tmdb_request("genre/movie/list").get("genres", [])
         generos_map = {g["id"]: g["name"] for g in generos_tmdb}
 
-        while filmes_guardados < 100:
+        while filmes_guardados < 500:
             data = tmdb_request("discover/movie", {
                 "sort_by": "release_date.desc",
                 "page": page

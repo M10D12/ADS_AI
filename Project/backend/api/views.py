@@ -1956,24 +1956,26 @@ def get_movie_recommendations(request):
             
             if generos_ids:
                 # Filmes com géneros similares, excluindo já altamente avaliados
+                # Ordenar por rating_tmdb e depois randomizar para variedade
                 filmes_recomendados = (
                     Filme.objects
                     .filter(generos__nome__in=generos_ids)
                     .exclude(id__in=filmes_ja_avaliados_ids)
                     .prefetch_related('generos')
                     .distinct()
-                    .order_by('-rating_tmdb')[:20]
+                    .order_by('-rating_tmdb', '?')[:20]
                 )
             else:
                 filmes_recomendados = Filme.objects.none()
         else:
             # Fallback: filmes populares
+            # Ordenar por rating_tmdb e depois randomizar para variedade
             filmes_recomendados = (
                 Filme.objects
                 .exclude(id__in=filmes_ja_avaliados_ids)
                 .filter(rating_tmdb__isnull=False)
                 .prefetch_related('generos')
-                .order_by('-rating_tmdb')[:20]
+                .order_by('-rating_tmdb', '?')[:20]
             )
         
         # Serializar resultados
