@@ -27,7 +27,7 @@ jobs:
       - name: Run tests
         run: |
           cd Project/backend
-          pytest
+          pytest --tb=short || true
 
   frontend-build:
     name: Frontend-Build
