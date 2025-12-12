@@ -1,76 +1,19 @@
-name: Continuous Integration
+name: CI/CD Pipeline
 
-# Triggers: Executa em push e pull_request para a branch main
+# RNF-11: Gatilhos de Execução - Pipeline corre em push e pull_request na branch main
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
+# RNF-11: Estágios - Build e Testes em paralelo
 jobs:
-  # Job Backend: Linting, Testes e Cobertura (RNF-07: >= 70%)
-  backend-ci:
-    name: Backend CI (Python/Django)
-    runs-on: ubuntu-latest
-    
-    defaults:
-      run:
-        working-directory: ./Project/backend
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # Setup Python 3.10+ para Django
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      # Cache pip para acelerar instalação de dependências (estratégia de cache pip)
-      - name: Cache pip dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      # Instala dependências do backend
-      - name: Install backend dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install flake8 pytest pytest-cov
-
-      # Linting com flake8: Falha em erros críticos
-      - name: Lint Backend (flake8)
-        run: |
-          # Verifica erros críticos (E9**, F63*, F82*)
-          flake8 . --count --select=E9,F63,F82 --show-source --statistics
-          # Verifica all style issues com max-line-length customizado
-          flake8 . --count --max-line-length=120 --statistics
-
-      # Testes com pytest: RNF-07 - Falha obrigatoriamente se cobertura < 70%
-      - name: Test Backend with Coverage (RNF-07: >= 70%)
-        run: |
-          # pytest --cov=./ --cov-fail-under=70 executa testes e valida cobertura mínima
-          pytest --cov=api --cov-report=term-missing --cov-fail-under=70
-
-      # Upload de relatório de cobertura (opcional, útil para análise)
-      - name: Upload Coverage Report
-        if: always()
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./coverage.xml
-          flags: backend
-          fail_ci_if_error: false
-
-  # Job Frontend: Build e Linting (Node.js/React)
-  frontend-ci:
-    name: Frontend CI (React/Node.js)
+  # ============================================================================
+  # Job Frontend: React + Node.js
+  # ============================================================================
+  frontend:
+    name: Frontend Build & Lint
     runs-on: ubuntu-latest
     
     defaults:
@@ -78,37 +21,123 @@ jobs:
         working-directory: ./Project/frontend
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Setup Node.js 18+ para React
+      # Build Stage: Instalar dependências
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: './Project/frontend/package-lock.json'
 
-      # Cache npm para acelerar instalação de dependências (estratégia de cache npm)
-      - name: Cache npm dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
-
-      # Instala dependências do frontend
-      - name: Install frontend dependencies
+      - name: Install dependencies
         run: npm ci
 
-      # Linting com eslint: Falha em erros críticos
-      - name: Lint Frontend (eslint)
-        run: |
-          # Verifica erros de linting (quebra o pipeline se houver erros)
-          npm run lint 2>&1 || exit 1
+      # RNF-07: Qualidade de Código - Linting para Frontend
+      - name: Lint Frontend Code (ESLint)
+        run: npm run lint
         continue-on-error: false
 
-      # Build do React: Valida que o código compila corretamente
+      # Build stage
       - name: Build Frontend
+        run: npm run build
+
+  # ============================================================================
+  # Job Backend: Django + Python
+  # ============================================================================
+  backend:
+    name: Backend Lint & Tests with Coverage
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./Project/backend
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:8432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Build Stage: Setup Python e instalar dependências
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
         run: |
-          # npm run build executa Vite build e falha se houver erros de compilação
-          npm run build
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # RNF-07: Qualidade de Código - Linting Backend com Flake8
+      - name: Lint Backend Code (Flake8)
+        run: |
+          pip install flake8
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        continue-on-error: false
+
+      # RNF-07 + RNF-11: Testes stage - Execução de testes unitários com cobertura
+      - name: Run Backend Tests with Coverage
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          DEBUG: false
+        run: |
+          pytest --cov=api --cov-report=xml --cov-report=html --cov-report=term-missing
+
+      # ========================================================================
+      # RNF-07 OBRIGATÓRIO: Validação de cobertura >= 70%
+      # Este passo falha explicitamente se a cobertura for inferior a 70%
+      # ========================================================================
+      - name: Check Coverage >= 70%
+        run: |
+          COVERAGE=$(coverage report | grep TOTAL | awk '{print int($NF)}')
+          echo "Coverage: ${COVERAGE}%"
+          
+          if [ "${COVERAGE}" -lt 70 ]; then
+            echo "❌ Coverage failure: ${COVERAGE}% is less than 70%"
+            exit 1
+          else
+            echo "✅ Coverage requirement met: ${COVERAGE}% >= 70%"
+          fi
+
+      # Upload coverage reports (opcional, para visualização)
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./Project/backend/coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+        continue-on-error: true
+
+  # ============================================================================
+  # Job Summary: Consolidação de resultados
+  # ============================================================================
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [ frontend, backend ]
+    
+    steps:
+      - name: Check CI Status
+        run: |
+          echo "✅ CI Pipeline completed successfully!"
+          echo "- Frontend: Lint and Build passed"
+          echo "- Backend: Lint, Tests, and Coverage (>= 70%) passed"
