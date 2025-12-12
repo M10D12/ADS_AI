@@ -1,287 +1,114 @@
-name: CI/CD Pipeline - Backend (Django) + Frontend (React)
+name: Continuous Integration
 
-# Triggers: Execute on push or PR to main branch (RNF-11)
+# Triggers: Executa em push e pull_request para a branch main
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
-  # ========================================================================
-  # STAGE 1: BUILD - Backend Dependencies
-  # ========================================================================
-  backend-build:
+  # Job Backend: Linting, Testes e Cobertura (RNF-07: >= 70%)
+  backend-ci:
+    name: Backend CI (Python/Django)
     runs-on: ubuntu-latest
-    name: Build Backend Dependencies
     
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-
-    - name: Install backend dependencies
-      working-directory: ./Project/backend
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest pytest-django pytest-cov flake8
-
-    - name: Verify dependencies
-      working-directory: ./Project/backend
-      run: pip list
-
-  # ========================================================================
-  # STAGE 1: BUILD - Frontend Dependencies
-  # ========================================================================
-  frontend-build:
-    runs-on: ubuntu-latest
-    name: Build Frontend Dependencies
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: Project/frontend/package-lock.json
-
-    - name: Install frontend dependencies
-      working-directory: ./Project/frontend
-      run: npm ci
-
-    - name: Verify build
-      working-directory: ./Project/frontend
-      run: npm run build
-
-  # ========================================================================
-  # STAGE 2: TESTS - Backend Unit & Integration Tests
-  # ========================================================================
-  backend-tests:
-    runs-on: ubuntu-latest
-    name: Backend Tests & Coverage
-    needs: backend-build
-    
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_DB: filmes_test
-          POSTGRES_USER: ${{ secrets.DB_USER || 'postgres' }}
-          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD || 'postgres' }}
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
+    defaults:
+      run:
+        working-directory: ./Project/backend
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        cache: 'pip'
+      # Setup Python 3.10+ para Django
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Install dependencies
-      working-directory: ./Project/backend
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest pytest-django pytest-cov
+      # Cache pip para acelerar instalação de dependências (estratégia de cache pip)
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-    - name: Run Django migrations
-      working-directory: ./Project/backend
-      env:
-        DJANGO_DB_HOST: localhost
-        DJANGO_DB_NAME: filmes_test
-        DJANGO_DB_USER: ${{ secrets.DB_USER || 'postgres' }}
-        DJANGO_DB_PASSWORD: ${{ secrets.DB_PASSWORD || 'postgres' }}
-        DJANGO_DB_PORT: 5432
-        DJANGO_SETTINGS_MODULE: config.settings
-      run: |
-        python manage.py migrate
+      # Instala dependências do backend
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8 pytest pytest-cov
 
-    - name: Run tests with coverage (RNF-07 - Min 70%)
-      working-directory: ./Project/backend
-      env:
-        DJANGO_DB_HOST: localhost
-        DJANGO_DB_NAME: filmes_test
-        DJANGO_DB_USER: ${{ secrets.DB_USER || 'postgres' }}
-        DJANGO_DB_PASSWORD: ${{ secrets.DB_PASSWORD || 'postgres' }}
-        DJANGO_DB_PORT: 5432
-        DJANGO_SETTINGS_MODULE: config.settings
-      run: |
-        pytest --cov=api --cov-report=xml --cov-report=html -v
-        coverage report --fail-under=70
+      # Linting com flake8: Falha em erros críticos
+      - name: Lint Backend (flake8)
+        run: |
+          # Verifica erros críticos (E9**, F63*, F82*)
+          flake8 . --count --select=E9,F63,F82 --show-source --statistics
+          # Verifica all style issues com max-line-length customizado
+          flake8 . --count --max-line-length=120 --statistics
 
-    - name: Upload coverage reports
-      if: always()
-      uses: codecov/codecov-action@v3
-      with:
-        files: ./Project/backend/coverage.xml
-        flags: backend
-        name: backend-coverage
+      # Testes com pytest: RNF-07 - Falha obrigatoriamente se cobertura < 70%
+      - name: Test Backend with Coverage (RNF-07: >= 70%)
+        run: |
+          # pytest --cov=./ --cov-fail-under=70 executa testes e valida cobertura mínima
+          pytest --cov=api --cov-report=term-missing --cov-fail-under=70
 
-  # ========================================================================
-  # STAGE 2: TESTS - Frontend Tests
-  # ========================================================================
-  frontend-tests:
+      # Upload de relatório de cobertura (opcional, útil para análise)
+      - name: Upload Coverage Report
+        if: always()
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          flags: backend
+          fail_ci_if_error: false
+
+  # Job Frontend: Build e Linting (Node.js/React)
+  frontend-ci:
+    name: Frontend CI (React/Node.js)
     runs-on: ubuntu-latest
-    name: Frontend Tests
-    needs: frontend-build
     
+    defaults:
+      run:
+        working-directory: ./Project/frontend
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: Project/frontend/package-lock.json
+      # Setup Node.js 18+ para React
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
 
-    - name: Install dependencies
-      working-directory: ./Project/frontend
-      run: npm ci
+      # Cache npm para acelerar instalação de dependências (estratégia de cache npm)
+      - name: Cache npm dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
 
-    - name: Run tests (if configured)
-      working-directory: ./Project/frontend
-      run: npm test -- --passWithNoTests || true
+      # Instala dependências do frontend
+      - name: Install frontend dependencies
+        run: npm ci
 
-  # ========================================================================
-  # STAGE 3: QUALITY - Linting & Code Analysis
-  # ========================================================================
-  backend-quality:
-    runs-on: ubuntu-latest
-    name: Backend Code Quality (Linting)
-    needs: backend-build
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      # Linting com eslint: Falha em erros críticos
+      - name: Lint Frontend (eslint)
+        run: |
+          # Verifica erros de linting (quebra o pipeline se houver erros)
+          npm run lint 2>&1 || exit 1
+        continue-on-error: false
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Install linting tools
-      working-directory: ./Project/backend
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install flake8
-
-    - name: Run Flake8 - Critical errors (RNF-07 - Must fail on critical)
-      working-directory: ./Project/backend
-      run: |
-        flake8 api --count --select=E9,F63,F7,F82 --show-source --statistics
-
-    - name: Run Flake8 - All issues report (exit zero for warnings)
-      working-directory: ./Project/backend
-      run: |
-        flake8 api --count --max-complexity=10 --max-line-length=127 --statistics --exit-zero || true
-
-  # ========================================================================
-  # STAGE 3: QUALITY - Frontend Linting
-  # ========================================================================
-  frontend-quality:
-    runs-on: ubuntu-latest
-    name: Frontend Code Quality (ESLint)
-    needs: frontend-build
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: Project/frontend/package-lock.json
-
-    - name: Install dependencies
-      working-directory: ./Project/frontend
-      run: npm ci
-
-    - name: Run ESLint - Critical errors
-      working-directory: ./Project/frontend
-      continue-on-error: true
-      run: |
-        npm install --save-dev eslint
-        npx eslint src --max-warnings 0
-
-  # ========================================================================
-  # STAGE 4: IMAGEM - Build Docker Images
-  # ========================================================================
-  docker-build:
-    runs-on: ubuntu-latest
-    name: Build Docker Images
-    needs: [ backend-tests, frontend-tests, backend-quality, frontend-quality ]
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-
-    - name: Build backend Docker image
-      uses: docker/build-push-action@v4
-      with:
-        context: ./Project/backend
-        push: false
-        tags: project-backend:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Build frontend Docker image
-      uses: docker/build-push-action@v4
-      with:
-        context: ./Project/frontend
-        push: false
-        tags: project-frontend:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-  # ========================================================================
-  # STAGE 5: DEPLOY - Deployment Simulation/Staging
-  # ========================================================================
-  deploy-simulation:
-    runs-on: ubuntu-latest
-    name: Deploy Simulation
-    needs: docker-build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Simulate deployment preparation
-      run: |
-        echo "✓ All quality gates passed"
-        echo "✓ Images built successfully"
-        echo "✓ Ready for staging/production deployment"
-        echo "Deployment timestamp: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-
-    - name: Log deployment info
-      run: |
-        echo "Backend Image: project-backend:${{ github.sha }}"
-        echo "Frontend Image: project-frontend:${{ github.sha }}"
-        echo "Branch: ${{ github.ref }}"
-        echo "Commit: ${{ github.sha }}"
+      # Build do React: Valida que o código compila corretamente
+      - name: Build Frontend
+        run: |
+          # npm run build executa Vite build e falha se houver erros de compilação
+          npm run build
