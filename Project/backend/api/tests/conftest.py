@@ -1,6 +1,7 @@
 import os
 import django
 from django.conf import settings
+from django.core.management import call_command
 
 # Configure Django settings
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
@@ -34,3 +35,6 @@ else:
 
 # Setup Django before any imports
 django.setup()
+
+# Create tables by running migrations
+call_command('migrate', verbosity=0, interactive=False)

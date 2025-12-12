@@ -46,32 +46,31 @@ class FilmeModelTest(TestCase):
     def setUp(self):
         """Cria um filme para testes"""
         self.filme = Filme.objects.create(
-            titulo="Inception",
+            nome="Inception",
             descricao="Um filme sobre sonhos dentro de sonhos",
-            genero="Ficção Científica",
             ano_lancamento=2010,
-            tmdb_id=27205,
-            avaliacao_media=8.8,
+            rating_tmdb=8.8,
             poster_path="/path/to/poster.jpg"
         )
     
     def test_filme_creation(self):
         """Testa criação de um filme"""
-        self.assertEqual(self.filme.titulo, "Inception")
+        self.assertEqual(self.filme.nome, "Inception")
         self.assertEqual(self.filme.ano_lancamento, 2010)
-        self.assertEqual(self.filme.avaliacao_media, 8.8)
+        self.assertEqual(self.filme.rating_tmdb, 8.8)
     
-    def test_filme_tmdb_id_unique(self):
-        """Testa que tmdb_id é único"""
-        with self.assertRaises(Exception):
-            Filme.objects.create(
-                titulo="Outro Filme",
-                descricao="Descrição",
-                genero="Drama",
-                ano_lancamento=2020,
-                tmdb_id=27205,  # mesmo ID
-                avaliacao_media=7.5
-            )
+    def test_filme_fields_are_optional(self):
+        """Testa que campos opcionais podem ser nulos"""
+        filme = Filme.objects.create(
+            nome="Filme Mínimo",
+            descricao=None,
+            ano_lancamento=None,
+            rating_tmdb=None,
+            poster_path=None
+        )
+        self.assertIsNone(filme.descricao)
+        self.assertIsNone(filme.ano_lancamento)
+        self.assertIsNone(filme.rating_tmdb)
     
     def test_filme_avaliacao_range(self):
         """Testa que avaliação está no intervalo correto"""
