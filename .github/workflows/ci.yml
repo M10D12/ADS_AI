@@ -124,7 +124,8 @@ jobs:
         DJANGO_DB_PORT: 5432
         DJANGO_SETTINGS_MODULE: config.settings
       run: |
-        pytest --cov=api --cov-report=xml --cov-report=html --cov-fail-under=70 -v
+        pytest --cov=api --cov-report=xml --cov-report=html -v
+        coverage report --fail-under=70
 
     - name: Upload coverage reports
       if: always()
