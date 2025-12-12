@@ -33,11 +33,16 @@ class UsuarioModelTest(TestCase):
         """Testa que timestamps são criados corretamente"""
         self.assertIsNotNone(self.usuario.created_at)
         self.assertIsNotNone(self.usuario.updated_at)
-        self.assertEqual(self.usuario.created_at, self.usuario.updated_at)
+        # Timestamps podem ter diferenças de microsegundos
+        self.assertAlmostEqual(
+            self.usuario.created_at.timestamp(),
+            self.usuario.updated_at.timestamp(),
+            places=2
+        )
     
     def test_usuario_str_representation(self):
         """Testa a representação em string do usuário"""
-        self.assertEqual(str(self.usuario), self.usuario.nome)
+        self.assertEqual(str(self.usuario), f"{self.usuario.nome} ({self.usuario.email})")
 
 
 class FilmeModelTest(TestCase):
@@ -72,10 +77,10 @@ class FilmeModelTest(TestCase):
         self.assertIsNone(filme.ano_lancamento)
         self.assertIsNone(filme.rating_tmdb)
     
-    def test_filme_avaliacao_range(self):
-        """Testa que avaliação está no intervalo correto"""
-        self.assertGreaterEqual(self.filme.avaliacao_media, 0)
-        self.assertLessEqual(self.filme.avaliacao_media, 10)
+    def test_filme_rating_range(self):
+        """Testa que rating está no intervalo correto"""
+        self.assertGreaterEqual(self.filme.rating_tmdb, 0)
+        self.assertLessEqual(self.filme.rating_tmdb, 10)
 
 
 class AtividadeUsuarioTest(TestCase):
@@ -89,12 +94,10 @@ class AtividadeUsuarioTest(TestCase):
             password_hash=make_password("senha123")
         )
         self.filme = Filme.objects.create(
-            titulo="The Matrix",
+            nome="The Matrix",
             descricao="Um clássico de ficção científica",
-            genero="Ficção Científica",
             ano_lancamento=1999,
-            tmdb_id=603,
-            avaliacao_media=8.7
+            rating_tmdb=8.7
         )
         self.atividade = AtividadeUsuario.objects.create(
             usuario=self.usuario,
