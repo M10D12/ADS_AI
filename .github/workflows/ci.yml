@@ -35,6 +35,9 @@ jobs:
 
       - name: Run tests with coverage
         working-directory: ./Project/backend
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings
+          PYTHONPATH: .
         run: |
           pytest api/tests/ --cov=api --cov-report=xml --cov-report=term --cov-fail-under=70
 
