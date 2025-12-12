@@ -3,10 +3,6 @@ name: CD - Continuous Deployment
 on:
   push:
     branches: [ main ]
-  workflow_run:
-    workflows: [ "CI - Continuous Integration" ]
-    types: [ completed ]
-    branches: [ main ]
 
 jobs:
   # ========================================================================
@@ -14,14 +10,10 @@ jobs:
   # ========================================================================
   build-push-images:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
@@ -45,56 +37,24 @@ jobs:
           project-frontend:${{ github.sha }}
 
   # ========================================================================
-  # Deploy Documentation
-  # ========================================================================
-  deploy-docs:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Generate API Documentation
-      working-directory: ./Project/backend
-      run: |
-        mkdir -p docs
-        echo "# API Documentation" > docs/README.md
-        echo "" >> docs/README.md
-        echo "## Endpoints" >> docs/README.md
-        echo "" >> docs/README.md
-        grep -r "path(" config/urls.py | head -20 >> docs/README.md || true
-
-    - name: Deploy docs to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v3
-      if: github.ref == 'refs/heads/main'
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./Project/backend/docs
-
-  # ========================================================================
   # Notify Deployment Status
   # ========================================================================
   notify-deployment:
     runs-on: ubuntu-latest
-    needs: [ build-push-images, deploy-docs ]
+    needs: [ build-push-images ]
     if: always()
 
     steps:
-    - name: Check deployment status
+    - name: Deployment notification
       run: |
-        if [ "${{ needs.build-push-images.result }}" == "success" ] && [ "${{ needs.deploy-docs.result }}" == "success" ]; then
+        if [ "${{ needs.build-push-images.result }}" == "success" ]; then
           echo "✅ Deployment pipeline completed successfully!"
+          echo "🚀 Deployment completed successfully!"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref }}"
+          echo "Author: ${{ github.actor }}"
           exit 0
         else
           echo "⚠️ Deployment pipeline completed with some issues"
           exit 1
         fi
-
-    - name: Create deployment notification
-      if: success()
-      run: |
-        echo "🚀 Deployment completed successfully!"
-        echo "Commit: ${{ github.sha }}"
-        echo "Branch: ${{ github.ref }}"
-        echo "Author: ${{ github.actor }}"
